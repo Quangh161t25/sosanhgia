@@ -23,9 +23,68 @@ import {
 const STORAGE_KEY_PRODUCTS = 'procompare_products_v2';
 const STORAGE_KEY_ROLE = 'procompare_show_cost_v1';
 
+// Ánh xạ tab sang đường dẫn URL chuẩn SEO & tiếng Việt
+export const TAB_ROUTES: Record<NavigationTab, string> = {
+  home: '/',
+  products: '/san-pham',
+  compare: '/so-sanh',
+  pricing: '/4-tang-gia',
+  settings: '/cai-dat',
+};
+
+export function getTabFromPathname(pathname: string): NavigationTab {
+  try {
+    const raw = decodeURIComponent(pathname || '').toLowerCase().trim();
+    const clean = raw.replace(/^\/+|\/+$/g, '');
+    if (!clean || clean === 'home' || clean === 'trang-chu') return 'home';
+    if (
+      clean.includes('san-pham') ||
+      clean.includes('sanpham') ||
+      clean.includes('sản phẩm') ||
+      clean.includes('san pham') ||
+      clean.includes('products') ||
+      clean.includes('product')
+    ) {
+      return 'products';
+    }
+    if (
+      clean.includes('so-sanh') ||
+      clean.includes('sosanh') ||
+      clean.includes('so sánh') ||
+      clean.includes('so sanh') ||
+      clean.includes('compare')
+    ) {
+      return 'compare';
+    }
+    if (clean.includes('tang-gia') || clean.includes('pricing') || clean.includes('bang-gia')) {
+      return 'pricing';
+    }
+    if (
+      clean.includes('cai-dat') ||
+      clean.includes('caidat') ||
+      clean.includes('cài đặt') ||
+      clean.includes('cai dat') ||
+      clean.includes('settings')
+    ) {
+      return 'settings';
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return 'products';
+}
+
 export default function App() {
-  // 1. Navigation state
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('products');
+  // 1. Navigation state với URL Pathname thực tế
+  const [currentTab, setCurrentTab] = useState<NavigationTab>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path && path !== '/') {
+        return getTabFromPathname(path);
+      }
+    }
+    return 'products';
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // 2. Trạng thái tải & đồng bộ dữ liệu Google Sheet
@@ -127,19 +186,45 @@ export default function App() {
     return [];
   });
 
+  // Đồng bộ hai chiều giữa URL trình duyệt và trạng thái ứng dụng (Pathname + Query Params)
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
+      const targetPath = TAB_ROUTES[currentTab] || '/san-pham';
+      url.pathname = targetPath;
+
       if (compareIds.length > 0) {
         url.searchParams.set('compare', compareIds.join(','));
       } else {
         url.searchParams.delete('compare');
       }
-      window.history.replaceState({}, '', url.toString());
+
+      const newUrlStr = url.pathname + url.search;
+      const currentUrlStr = window.location.pathname + window.location.search;
+      if (newUrlStr !== currentUrlStr) {
+        window.history.pushState({ tab: currentTab }, '', newUrlStr);
+      }
     } catch (e) {
       // Ignore in restricted environments
     }
-  }, [compareIds]);
+  }, [currentTab, compareIds]);
+
+  // Lắng nghe sự kiện Back / Forward của trình duyệt
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getTabFromPathname(window.location.pathname);
+      setCurrentTab(tab);
+      const params = new URLSearchParams(window.location.search);
+      const urlCompare = params.get('compare');
+      if (urlCompare) {
+        setCompareIds(urlCompare.split(',').filter(Boolean));
+      } else {
+        setCompareIds([]);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // 5. Modals State
   const [isMatrixOpen, setIsMatrixOpen] = useState(false);
