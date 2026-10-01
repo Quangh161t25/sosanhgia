@@ -360,8 +360,8 @@ export default function App() {
     );
   }
 
-  // Subtitle breadcrumb
-  const currentSubTitle = currentTab === 'products' ? 'Danh sách' : undefined;
+  // Subtitle breadcrumb (đi thẳng từ Trang chủ tới Sản phẩm, không còn mục 'Danh sách' thừa)
+  const currentSubTitle = undefined;
 
   return (
     <div className="flex h-screen bg-slate-100/70 overflow-hidden font-sans">

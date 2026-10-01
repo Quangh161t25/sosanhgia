@@ -80,7 +80,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   showCostPrice,
   onUpdateProducts,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'list' | 'stats'>('list');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
@@ -368,32 +367,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         {/* Hàng 1: Tabs nhỏ + Bộ điều khiển so sánh (Đủ 5 sản phẩm mới so sánh) */}
         <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
           
-          {/* Sub-tabs */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeSubTab === 'list'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Danh sách</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('stats')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeSubTab === 'stats'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              <span>Thống kê</span>
-            </button>
+          {/* Tiêu đề & Đếm số lượng sản phẩm */}
+          <div className="flex items-center gap-2.5">
+            <span className="text-sm font-bold text-slate-800">
+              Sản phẩm
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              {filteredProducts.length} sản phẩm
+            </span>
           </div>
 
           {/* VÙNG ĐIỀU KHIỂN SO SÁNH: ĐỦ 5 SP MỚI MỞ NÚT SO SÁNH */}
