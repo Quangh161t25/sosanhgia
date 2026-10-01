@@ -9,7 +9,10 @@ import {
   RotateCcw,
   Sparkles,
   Key,
-  Scale
+  Scale,
+  Eye,
+  EyeOff,
+  Settings,
 } from 'lucide-react';
 import { NavigationTab } from './AppSidebar';
 
@@ -21,6 +24,8 @@ interface TopNavbarProps {
   onOpenSettings: () => void;
   onResetData: () => void;
   totalProducts: number;
+  showCostPrice?: boolean;
+  onToggleCostPrice?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -31,6 +36,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenSettings,
   onResetData,
   totalProducts,
+  showCostPrice,
+  onToggleCostPrice,
 }) => {
   const [timeString, setTimeString] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -109,16 +116,54 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         )}
       </div>
 
-      {/* Right: Clock, Notification, Profile */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      {/* Right: Giá nhập, Cài đặt, Clock, Notification, Profile */}
+      <div className="flex items-center gap-2 sm:gap-2.5">
         
+        {/* Toggle Giá nhập: Đang hiện / Đang ẩn (Góc trên cùng) */}
+        {onToggleCostPrice && (
+          <button
+            type="button"
+            onClick={onToggleCostPrice}
+            title={showCostPrice ? 'Ẩn giá nhập (Chế độ demo khách)' : 'Hiện giá nhập (Chế độ quản lý)'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-2xs border ${
+              showCostPrice
+                ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-800'
+            }`}
+          >
+            {showCostPrice ? (
+              <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            ) : (
+              <EyeOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            )}
+            <span className="hidden sm:inline">
+              {showCostPrice ? 'Giá nhập: Đang hiện' : 'Giá nhập: Đang ẩn'}
+            </span>
+          </button>
+        )}
+
+        {/* Nút Cài đặt (Góc trên cùng) */}
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          title="Cài đặt hệ thống"
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            currentTab === 'settings'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 bg-white'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">Cài đặt</span>
+        </button>
+
         {/* Google Sheet Live Badge */}
         <a
           href="https://docs.google.com/spreadsheets/d/16I-JJUzrLWHh0nuKqoJwggAcrF_xIpBbT6EAcN5Geeg/edit"
           target="_blank"
           rel="noopener noreferrer"
           title="Google Sheet: SO_SANH_GIA (Đã kết nối - lnk-773@cty-lnk-161.iam.gserviceaccount.com)"
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-medium hover:bg-emerald-100 transition-colors"
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-medium hover:bg-emerald-100 transition-colors"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-semibold">Sheet: SO_SANH_GIA</span>

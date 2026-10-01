@@ -4,11 +4,8 @@ import {
   Package,
   Scale,
   TrendingUp,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  EyeOff
 } from 'lucide-react';
 
 export type NavigationTab = 'home' | 'products' | 'compare' | 'pricing' | 'settings';
@@ -19,8 +16,8 @@ interface AppSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   compareCount: number;
-  showCostPrice: boolean;
-  onToggleCostPrice: () => void;
+  showCostPrice?: boolean;
+  onToggleCostPrice?: () => void;
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
@@ -29,8 +26,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
   compareCount,
-  showCostPrice,
-  onToggleCostPrice,
 }) => {
   const navItems: { id: NavigationTab; label: string; icon: React.ReactNode; badge?: React.ReactNode }[] = [
     {
@@ -118,42 +113,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom Footer Actions */}
-      <div className="p-2 border-t border-slate-100 space-y-1">
-        {/* Cost Price Eye toggle */}
-        <button
-          type="button"
-          onClick={onToggleCostPrice}
-          title={showCostPrice ? 'Ẩn giá nhập (Chế độ demo khách)' : 'Hiện giá nhập (Chế độ quản lý)'}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-        >
-          {showCostPrice ? (
-            <Eye className="w-4 h-4 text-amber-600 shrink-0" />
-          ) : (
-            <EyeOff className="w-4 h-4 text-slate-400 shrink-0" />
-          )}
-          {!isCollapsed && (
-            <span className="truncate text-[11px]">
-              {showCostPrice ? 'Giá nhập: Đang hiện' : 'Giá nhập: Đang ẩn'}
-            </span>
-          )}
-        </button>
-
-        {/* Settings button */}
-        <button
-          type="button"
-          onClick={() => onSelectTab('settings')}
-          title={isCollapsed ? 'Cài đặt hệ thống' : undefined}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-colors ${
-            currentTab === 'settings'
-              ? 'bg-blue-600 text-white font-semibold'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Settings className="w-4 h-4 text-slate-500 shrink-0" />
-          {!isCollapsed && <span className="truncate">Cài đặt</span>}
-        </button>
-      </div>
     </aside>
   );
 };

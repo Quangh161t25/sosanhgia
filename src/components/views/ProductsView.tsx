@@ -4,7 +4,6 @@ import {
   Search,
   Plus,
   Printer,
-  FileSpreadsheet,
   LayoutGrid,
   List,
   RotateCcw,
@@ -559,18 +558,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
             >
               <Printer className="w-4 h-4" />
-            </button>
-
-            {/* Nút Kết nối Google Sheet */}
-            <button
-              type="button"
-              onClick={() => setIsSheetsModalOpen(true)}
-              title="Liên kết & Đồng bộ Google Sheet (SO_SANH_GIA)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 transition-all font-semibold text-xs cursor-pointer shadow-2xs"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="hidden md:inline font-medium">Google Sheet</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Đã kết nối Google Sheet" />
             </button>
 
             {/* Nút Nhập Excel (.xlsx, .xls, .csv) */}

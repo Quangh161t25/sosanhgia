@@ -474,6 +474,8 @@ export default function App() {
           onOpenSettings={() => setCurrentTab('settings')}
           onResetData={handleResetData}
           totalProducts={products.length}
+          showCostPrice={showCostPrice}
+          onToggleCostPrice={handleToggleCostPrice}
         />
 
         {/* Scrollable View Area */}
