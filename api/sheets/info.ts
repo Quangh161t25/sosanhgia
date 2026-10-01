@@ -13,6 +13,10 @@ export default async function handler(req: any, res: any) {
     const info = await getSpreadsheetInfo();
     return res.status(200).json({ success: true, ...info });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error?.message || 'Lỗi server' });
+    console.error('Lỗi API /api/sheets/info:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Lỗi kết nối kiểm tra thông tin Google Sheets',
+    });
   }
 }
