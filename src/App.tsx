@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { Loader2, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { Product } from './types/product';
 import { AppSidebar, NavigationTab } from './components/layout/AppSidebar';
@@ -201,47 +202,62 @@ export default function App() {
     }
   };
 
-  // Xuất file CSV toàn bộ danh mục sản phẩm
+  // Xuất file Excel (.xlsx) toàn bộ danh mục sản phẩm chuẩn 20 cột
   const handleExportCatalog = () => {
-    const headers = [
-      'Mã Modul (SKU)',
-      'Tên sản phẩm',
-      'Nhóm',
-      'Loại',
-      'Giá nhập (VND)',
-      'Giá NPP (VND)',
-      'Giá sàn (VND)',
-      'Giá thương mại (VND)',
-      '% Lợi nhuận NPP',
-      'Bảo hành',
-      'Ghi chú',
-    ];
-
-    const rows = products.map(p => {
+    const data = products.map(p => {
       const f = calculateFinancials(p.pricing);
-      return [
-        `"${p.sku}"`,
-        `"${p.name}"`,
-        `"${p.categoryGroup}"`,
-        `"${p.categoryType}"`,
-        p.pricing.costPrice,
-        p.pricing.distributorPrice,
-        p.pricing.floorPrice,
-        p.pricing.retailPrice,
-        `"${f.nppMarginPercent}%"`,
-        `"${p.warrantyMonths || 12} Tháng"`,
-        `"${(p.notes || '').replace(/"/g, '""')}"`,
-      ];
+      const specsText = p.specifications
+        ? p.specifications
+            .map(g => `[${g.groupName}] ${g.items.map(i => `${i.key}: ${i.value}`).join(' | ')}`)
+            .join('\n')
+        : '';
+
+      return {
+        'Mã SKU / Modul': p.sku,
+        'Tên sản phẩm': p.name,
+        'Thương hiệu': p.brand,
+        'Nhóm danh mục': p.categoryGroup,
+        'Loại sản phẩm': p.categoryType,
+        'Thời hạn BH (tháng)': p.warrantyMonths || 12,
+        '1. Giá nhập (VND)': p.pricing.costPrice,
+        '2. Giá NPP (VND)': p.pricing.distributorPrice,
+        '3. Giá sàn (VND)': p.pricing.floorPrice,
+        '4. Giá bán lẻ (VND)': p.pricing.retailPrice,
+        '% Lợi nhuận NPP': `${f.nppMarginPercent}%`,
+        'Lợi nhuận NPP (VND)': f.nppGross,
+        'Link ảnh': p.thumbnail,
+        'Nhãn Tags': (p.tags || []).join(', '),
+        'Mô tả sản phẩm': p.description || '',
+        'Thông số kỹ thuật': specsText,
+        'Ghi chú': p.notes || '',
+        'Trạng thái': 'Đang kinh doanh',
+      };
     });
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `danh-muc-san-pham-bang-gia-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 16 },
+      { wch: 32 },
+      { wch: 15 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 30 },
+      { wch: 22 },
+      { wch: 35 },
+      { wch: 45 },
+      { wch: 25 },
+      { wch: 16 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Danh mục sản phẩm');
+    XLSX.writeFile(wb, `Danh_Muc_San_Pham_SoSanhGia_${Date.now()}.xlsx`);
   };
 
   // Lưu sản phẩm từ Form Modal (Thêm mới hoặc Cập nhật)

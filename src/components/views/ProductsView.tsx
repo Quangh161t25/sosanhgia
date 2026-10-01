@@ -14,7 +14,8 @@ import {
   Eye,
   SlidersHorizontal,
   X,
-  AlertCircle
+  AlertCircle,
+  Upload,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -22,6 +23,7 @@ import { calculateFinancials, formatVND } from '../../utils/pricing';
 import { ColumnConfig } from './ColumnSettingsModal';
 import { ColumnOptionsPopover, TableDensity } from './ColumnOptionsPopover';
 import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
+import { ExcelImportModal } from '../ExcelImportModal';
 
 const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
 const DENSITY_STORAGE_KEY = 'procompare_table_density';
@@ -81,6 +83,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'stats'>('list');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedType, setSelectedType] = useState('');
@@ -589,12 +592,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Đã kết nối Google Sheet" />
             </button>
 
-            {/* Xuất CSV */}
+            {/* Nút Nhập Excel (.xlsx, .xls, .csv) */}
+            <button
+              type="button"
+              onClick={() => setIsExcelImportOpen(true)}
+              title="Tải lên dữ liệu sản phẩm từ file Excel (.xlsx, .xls, .csv)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 transition-all font-semibold text-xs cursor-pointer shadow-2xs"
+            >
+              <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="hidden md:inline font-medium">Nhập Excel</span>
+            </button>
+
+            {/* Xuất CSV / Excel */}
             <button
               type="button"
               onClick={onExportCatalog}
-              title="Xuất bảng dữ liệu ra file CSV / Excel"
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              title="Xuất bảng dữ liệu ra file Excel / CSV"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-slate-500" />
             </button>
@@ -1191,6 +1205,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onClose={() => setIsSheetsModalOpen(false)}
         products={products}
         onUpdateProducts={onUpdateProducts || (() => {})}
+      />
+
+      {/* MODAL NHẬP DỮ LIỆU SẢN PHẨM TỪ EXCEL (.XLSX, .XLS, .CSV) */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        currentProducts={products}
+        onImportProducts={newProducts => {
+          if (onUpdateProducts) {
+            onUpdateProducts(newProducts);
+          }
+        }}
+        showCostPrice={showCostPrice}
       />
 
     </div>
