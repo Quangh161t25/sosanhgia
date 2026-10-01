@@ -351,6 +351,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return pinned.length > 0 ? pinned[pinned.length - 1].id : null;
   }, [visibleColumns]);
 
+  // Tổng độ rộng của bảng dữ liệu theo cấu hình cột hiển thị
+  const totalTableWidth = useMemo(() => {
+    return visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
+  }, [visibleColumns]);
+
   // Padding & font size tương ứng với mức giãn dòng
   const cellPaddingClass = useMemo(() => {
     if (density === 'compact') return 'py-1.5 px-2.5 text-[11px]';
@@ -611,7 +616,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {viewMode === 'table' ? (
         <div className="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="w-full overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table
+              style={{ width: `${totalTableWidth}px`, minWidth: '100%' }}
+              className="table-fixed text-left text-xs border-collapse"
+            >
               
               {/* Header bảng dữ liệu có hỗ trợ KÉO CHỈNH ĐỘ RỘNG TRỰC TIẾP */}
               <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-semibold select-none">
@@ -719,7 +727,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               : col.align === 'right'
                               ? 'text-right'
                               : 'text-left';
-                          const wrapClass = col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap';
+                          const wrapClass = col.wrap ? 'whitespace-normal break-words leading-relaxed' : 'truncate whitespace-nowrap block max-w-full';
 
                           const stickyClass = isPinned
                             ? `sticky z-10 ${isSelected ? 'bg-blue-50/95' : 'bg-white'} ${
@@ -727,7 +735,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               }`
                             : '';
 
-                          const cellBaseClass = `${cellPaddingClass} ${alignClass} ${stickyClass} border-r border-slate-200/80 last:border-r-0`;
+                          const cellBaseClass = `${cellPaddingClass} ${alignClass} ${stickyClass} border-r border-slate-200/80 last:border-r-0 align-top`;
                           const cellStyle: React.CSSProperties = {
                             width: `${col.width}px`,
                             minWidth: `${col.width}px`,
@@ -783,16 +791,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'name') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-start gap-2">
                                   <div
-                                    className={`w-6 h-6 rounded-full ${colorBg} text-white flex items-center justify-center font-bold text-[9px] shrink-0 shadow-2xs`}
+                                    className={`w-6 h-6 rounded-full ${colorBg} text-white flex items-center justify-center font-bold text-[9px] shrink-0 shadow-2xs mt-0.5`}
                                   >
                                     {getInitials(prod.name)}
                                   </div>
-                                  <div className={`leading-snug min-w-0 ${wrapClass}`}>
+                                  <div className="min-w-0 flex-1">
                                     <span
                                       onClick={() => onViewDetail(prod)}
-                                      className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer"
+                                      className={`font-bold text-slate-900 hover:text-blue-600 cursor-pointer ${
+                                        col.wrap
+                                          ? 'whitespace-normal break-words leading-snug block'
+                                          : 'truncate whitespace-nowrap block'
+                                      }`}
                                     >
                                       {prod.name}
                                     </span>
@@ -806,7 +818,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'sku') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <span className={`font-mono font-bold text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block ${wrapClass}`}>
+                                <span
+                                  className={`font-mono font-bold text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block max-w-full ${
+                                    col.wrap ? 'whitespace-normal break-all' : 'truncate whitespace-nowrap'
+                                  }`}
+                                >
                                   {prod.sku}
                                 </span>
                               </td>
@@ -817,9 +833,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'brand') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <span className={`font-semibold text-slate-800 text-xs ${wrapClass}`}>
+                                <div
+                                  className={`font-semibold text-slate-800 text-xs ${
+                                    col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
+                                  }`}
+                                >
                                   {prod.brand || '—'}
-                                </span>
+                                </div>
                               </td>
                             );
                           }
@@ -828,7 +848,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'categoryGroup') {
                             return (
                               <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-700`}>
-                                <span className={wrapClass}>{prod.categoryGroup || '—'}</span>
+                                <div
+                                  className={
+                                    col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
+                                  }
+                                >
+                                  {prod.categoryGroup || '—'}
+                                </div>
                               </td>
                             );
                           }
@@ -837,7 +863,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'categoryType') {
                             return (
                               <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-600`}>
-                                <span className={wrapClass}>{prod.categoryType || '—'}</span>
+                                <div
+                                  className={
+                                    col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
+                                  }
+                                >
+                                  {prod.categoryType || '—'}
+                                </div>
                               </td>
                             );
                           }
@@ -921,7 +953,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
                                 <div
-                                  className={`text-xs text-slate-600 line-clamp-2 hover:line-clamp-none cursor-pointer ${wrapClass}`}
+                                  className={`text-xs text-slate-600 cursor-pointer ${
+                                    col.wrap
+                                      ? 'whitespace-normal break-words leading-relaxed'
+                                      : 'truncate whitespace-nowrap block max-w-full'
+                                  }`}
                                   title={prod.description || 'Chưa có mô tả'}
                                   onClick={() => onViewDetail(prod)}
                                 >
@@ -940,19 +976,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
                                 <div
-                                  className={`text-xs text-slate-700 cursor-pointer ${wrapClass}`}
+                                  className="text-xs text-slate-700 cursor-pointer"
                                   onClick={() => onViewDetail(prod)}
                                   title={specsSummary || 'Xem chi tiết thông số'}
                                 >
                                   {prod.specifications.length > 0 ? (
-                                    <div className="space-y-0.5">
-                                      <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block mr-1">
-                                        {prod.specifications.length} nhóm ({totalSpecsCount} mục)
-                                      </span>
-                                      <span className="text-[11px] text-slate-600 line-clamp-1">
-                                        {prod.specifications[0]?.items.slice(0, 2).map(it => `${it.key}: ${it.value}`).join(' • ')}
-                                      </span>
-                                    </div>
+                                    col.wrap ? (
+                                      <div className="space-y-1">
+                                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block mr-1">
+                                          {prod.specifications.length} nhóm ({totalSpecsCount} mục)
+                                        </span>
+                                        <div className="text-[11px] text-slate-600 whitespace-normal break-words leading-relaxed space-y-0.5">
+                                          {prod.specifications.slice(0, 3).map((group, gIdx) => (
+                                            <div key={gIdx} className="text-[11px]">
+                                              <span className="font-semibold text-slate-700">{group.groupName}: </span>
+                                              <span>{group.items.slice(0, 3).map(it => `${it.key}: ${it.value}`).join(', ')}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5 truncate max-w-full">
+                                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
+                                          {prod.specifications.length} nhóm
+                                        </span>
+                                        <span className="text-[11px] text-slate-600 truncate whitespace-nowrap block">
+                                          {prod.specifications[0]?.items.slice(0, 2).map(it => `${it.key}: ${it.value}`).join(' • ')}
+                                        </span>
+                                      </div>
+                                    )
                                   ) : (
                                     <span className="text-slate-300 italic text-[11px]">Chưa bóc tách</span>
                                   )}
@@ -965,12 +1017,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'tags') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <div className={`flex flex-wrap gap-1 ${wrapClass}`}>
+                                <div
+                                  className={`gap-1 ${
+                                    col.wrap
+                                      ? 'flex flex-wrap leading-normal'
+                                      : 'flex flex-nowrap overflow-hidden max-w-full'
+                                  }`}
+                                >
                                   {prod.tags && prod.tags.length > 0 ? (
                                     prod.tags.map((t, tidx) => (
                                       <span
                                         key={tidx}
-                                        className="text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80 px-1.5 py-0.2 rounded"
+                                        className={`text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80 px-1.5 py-0.5 rounded ${
+                                          !col.wrap ? 'truncate shrink-0' : ''
+                                        }`}
                                       >
                                         {t}
                                       </span>
@@ -987,9 +1047,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           if (col.id === 'notes') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <span className={`text-xs text-slate-500 italic ${wrapClass}`} title={prod.notes}>
+                                <div
+                                  className={`text-xs text-slate-500 italic ${
+                                    col.wrap
+                                      ? 'whitespace-normal break-words leading-relaxed'
+                                      : 'truncate whitespace-nowrap block max-w-full'
+                                  }`}
+                                  title={prod.notes}
+                                >
                                   {prod.notes || '—'}
-                                </span>
+                                </div>
                               </td>
                             );
                           }
