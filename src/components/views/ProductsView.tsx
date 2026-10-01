@@ -4,6 +4,7 @@ import {
   Search,
   Plus,
   Printer,
+  FileSpreadsheet,
   LayoutGrid,
   List,
   RotateCcw,
