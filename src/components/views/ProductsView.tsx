@@ -1,0 +1,1198 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  ArrowLeft,
+  Search,
+  Plus,
+  Printer,
+  FileSpreadsheet,
+  LayoutGrid,
+  List,
+  RotateCcw,
+  Scale,
+  Edit2,
+  Trash2,
+  Eye,
+  SlidersHorizontal,
+  X,
+  AlertCircle
+} from 'lucide-react';
+import { Product } from '../../types/product';
+import { ProductCard } from '../ProductCard';
+import { calculateFinancials, formatVND } from '../../utils/pricing';
+import { ColumnConfig } from './ColumnSettingsModal';
+import { ColumnOptionsPopover, TableDensity } from './ColumnOptionsPopover';
+import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
+
+const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
+const DENSITY_STORAGE_KEY = 'procompare_table_density';
+
+export const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { id: 'checkbox', label: 'Hộp kiểm', visible: true, pinned: true, align: 'center', wrap: false, width: 48 },
+  { id: 'thumbnail', label: 'Hình ảnh', visible: true, pinned: false, align: 'center', wrap: false, width: 68 },
+  { id: 'sku', label: 'Mã SKU / Modul', visible: true, pinned: false, align: 'left', wrap: false, width: 120 },
+  { id: 'name', label: 'Tên sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 250 },
+  { id: 'brand', label: 'Thương hiệu', visible: true, pinned: false, align: 'left', wrap: false, width: 120 },
+  { id: 'categoryGroup', label: 'Nhóm danh mục', visible: true, pinned: false, align: 'left', wrap: false, width: 130 },
+  { id: 'categoryType', label: 'Loại sản phẩm', visible: true, pinned: false, align: 'left', wrap: false, width: 130 },
+  { id: 'warrantyMonths', label: 'Bảo hành', visible: true, pinned: false, align: 'center', wrap: false, width: 100 },
+  { id: 'costPrice', label: '1. Giá nhập', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
+  { id: 'distributorPrice', label: '2. Giá NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
+  { id: 'floorPrice', label: '3. Giá sàn', visible: true, pinned: false, align: 'right', wrap: false, width: 100 },
+  { id: 'retailPrice', label: '4. Giá bán lẻ', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
+  { id: 'margin', label: 'Biên LN NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 100 },
+  { id: 'description', label: 'Mô tả sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 300 },
+  { id: 'specs', label: 'Thông số kỹ thuật', visible: true, pinned: false, align: 'left', wrap: true, width: 240 },
+  { id: 'tags', label: 'Nhãn Tags', visible: true, pinned: false, align: 'left', wrap: true, width: 130 },
+  { id: 'notes', label: 'Ghi chú', visible: true, pinned: false, align: 'left', wrap: true, width: 160 },
+  { id: 'status', label: 'Trạng thái', visible: true, pinned: false, align: 'center', wrap: false, width: 110 },
+  { id: 'updatedAt', label: 'Ngày cập nhật', visible: true, pinned: false, align: 'center', wrap: false, width: 110 },
+  { id: 'actions', label: 'Thao tác', visible: true, pinned: false, align: 'center', wrap: false, width: 120 },
+];
+
+interface ProductsViewProps {
+  products: Product[];
+  onBackToHome: () => void;
+  onOpenAddModal: () => void;
+  onEditProduct: (product: Product) => void;
+  onViewDetail: (product: Product) => void;
+  onDeleteProduct: (productId: string) => void;
+  compareIds: string[];
+  onSetCompareProducts: (productIds: string[]) => void;
+  onOpenCompare: () => void;
+  onExportCatalog: () => void;
+  showCostPrice: boolean;
+  onUpdateProducts?: (newProducts: Product[]) => void;
+}
+
+export const ProductsView: React.FC<ProductsViewProps> = ({
+  products,
+  onBackToHome,
+  onOpenAddModal,
+  onEditProduct,
+  onViewDetail,
+  onDeleteProduct,
+  compareIds,
+  onSetCompareProducts,
+  onOpenCompare,
+  onExportCatalog,
+  showCostPrice,
+  onUpdateProducts,
+}) => {
+  const [activeSubTab, setActiveSubTab] = useState<'list' | 'stats'>('list');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+
+  // 1. CHỌN HÀNG LOẠT & ĐỒNG BỘ VỚI DANH SÁCH SO SÁNH
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => compareIds);
+
+  // Tự động đồng bộ selectedIds khi compareIds thay đổi từ Dock hoặc Matrix
+  useEffect(() => {
+    setSelectedIds(prev => Array.from(new Set([...prev, ...compareIds])));
+  }, [compareIds]);
+
+  // 2. CẤU HÌNH CỘT (Sắp xếp, Ghim, Ẩn/Hiện, Căn lề, Độ rộng)
+  const [columns, setColumns] = useState<ColumnConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_STORAGE_KEY);
+      if (saved) {
+        const parsed: ColumnConfig[] = JSON.parse(saved);
+        // Tự động bổ sung các cột mới nếu trước đó chưa có trong cấu hình đã lưu
+        const existingIds = new Set(parsed.map(c => c.id));
+        const missing = DEFAULT_COLUMNS.filter(c => !existingIds.has(c.id));
+        if (missing.length === 0) return parsed;
+        return [...parsed, ...missing];
+      }
+    } catch (e) {
+      console.error('Lỗi đọc cấu hình cột:', e);
+    }
+    return DEFAULT_COLUMNS;
+  });
+
+  const [density, setDensity] = useState<TableDensity>(() => {
+    try {
+      const saved = localStorage.getItem(DENSITY_STORAGE_KEY);
+      if (saved === 'compact' || saved === 'normal' || saved === 'spacious') return saved;
+    } catch (e) {
+      // Ignore
+    }
+    return 'normal';
+  });
+
+  const handleUpdateDensity = (newDensity: TableDensity) => {
+    setDensity(newDensity);
+    try {
+      localStorage.setItem(DENSITY_STORAGE_KEY, newDensity);
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
+
+  // Lưu cấu hình cột vào localStorage
+  const handleUpdateColumns = (newCols: ColumnConfig[]) => {
+    setColumns(newCols);
+    try {
+      localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(newCols));
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  const handleResetColumns = () => {
+    setColumns(DEFAULT_COLUMNS);
+    setDensity('normal');
+    try {
+      localStorage.removeItem(COLUMN_STORAGE_KEY);
+      localStorage.removeItem(DENSITY_STORAGE_KEY);
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  // 3. THAY ĐỔI KÍCH THƯỚC CỘT BẰNG KÉO CHUỘT TRỰC TIẾP TRÊN WEB
+  const resizingColRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+
+  const handleStartResize = (colId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const col = columns.find(c => c.id === colId);
+    if (!col) return;
+
+    resizingColRef.current = {
+      colId,
+      startX: e.clientX,
+      startWidth: col.width,
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!resizingColRef.current) return;
+      const diff = moveEvent.clientX - resizingColRef.current.startX;
+      const newWidth = Math.max(50, resizingColRef.current.startWidth + diff);
+
+      setColumns(prev =>
+        prev.map(c => (c.id === resizingColRef.current!.colId ? { ...c, width: newWidth } : c))
+      );
+    };
+
+    const handleMouseUp = () => {
+      if (resizingColRef.current) {
+        // Lưu sau khi kéo xong
+        setColumns(currentCols => {
+          try {
+            localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(currentCols));
+          } catch (e) {
+            // Ignore
+          }
+          return currentCols;
+        });
+      }
+      resizingColRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Danh mục nhóm và loại duy nhất
+  const categoryGroups = useMemo(() => {
+    return Array.from(new Set(products.map(p => p.categoryGroup))).filter(Boolean);
+  }, [products]);
+
+  const categoryTypes = useMemo(() => {
+    return Array.from(new Set(products.map(p => p.categoryType))).filter(Boolean);
+  }, [products]);
+
+  // Bộ lọc sản phẩm
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchSku = p.sku.toLowerCase().includes(q);
+        const matchName = p.name.toLowerCase().includes(q);
+        const matchBrand = p.brand ? p.brand.toLowerCase().includes(q) : false;
+        const matchNotes = p.notes ? p.notes.toLowerCase().includes(q) : false;
+        const matchSpecs = p.specifications.some(sg =>
+          sg.items.some(
+            i => i.key.toLowerCase().includes(q) || i.value.toLowerCase().includes(q)
+          )
+        );
+        if (!matchSku && !matchName && !matchBrand && !matchNotes && !matchSpecs) {
+          return false;
+        }
+      }
+
+      if (selectedGroup && p.categoryGroup !== selectedGroup) return false;
+      if (selectedType && p.categoryType !== selectedType) return false;
+
+      return true;
+    });
+  }, [products, searchQuery, selectedGroup, selectedType]);
+
+  // TÍCH CHỌN HÀNG LOẠT (HỘP KIỂM CHO PHÉP CHỌN HẾT)
+  const isAllSelected =
+    filteredProducts.length > 0 &&
+    filteredProducts.every(p => selectedIds.includes(p.id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+      onSetCompareProducts([]);
+    } else {
+      const allIds = filteredProducts.map(p => p.id);
+      setSelectedIds(allIds);
+      // Đưa 5 sản phẩm đầu vào danh sách so sánh
+      onSetCompareProducts(allIds.slice(0, 5));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    const isCurrentlyIn = selectedIds.includes(id) || compareIds.includes(id);
+
+    let nextSelected: string[];
+    let nextCompare: string[];
+
+    if (isCurrentlyIn) {
+      nextSelected = selectedIds.filter(i => i !== id);
+      nextCompare = compareIds.filter(i => i !== id);
+    } else {
+      nextSelected = [...selectedIds, id];
+      // Tự động đưa vào danh sách so sánh nếu chưa đủ 5 sản phẩm
+      if (compareIds.length < 5) {
+        nextCompare = [...compareIds, id];
+      } else {
+        nextCompare = compareIds;
+      }
+    }
+
+    setSelectedIds(nextSelected);
+    onSetCompareProducts(nextCompare);
+  };
+
+  // MỞ NÚT SO SÁNH: ĐỦ ĐÚNG 5 SẢN PHẨM MỚI SO SÁNH
+  const canCompare = compareIds.length === 5;
+
+  const handleOpenCompareWithSelected = () => {
+    if (compareIds.length !== 5) {
+      alert('Vui lòng chọn đúng 5 sản phẩm để so sánh!');
+      return;
+    }
+    onOpenCompare();
+  };
+
+  // Xóa các sản phẩm đã tích chọn
+  const handleDeleteSelected = () => {
+    if (
+      confirm(
+        `Bạn có chắc chắn muốn xóa ${selectedIds.length} sản phẩm đã chọn khỏi hệ thống không?`
+      )
+    ) {
+      selectedIds.forEach(id => onDeleteProduct(id));
+      setSelectedIds([]);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Helper avatar initials
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const avatarColors = [
+    'bg-blue-600',
+    'bg-emerald-600',
+    'bg-indigo-600',
+    'bg-violet-600',
+    'bg-amber-600',
+    'bg-rose-600',
+    'bg-teal-600',
+    'bg-slate-700',
+  ];
+
+  // Lấy các cột đang hiển thị (ẩn cột giá nhập nếu showCostPrice tắt)
+  const visibleColumns = useMemo(() => {
+    return columns.filter(col => {
+      if (!col.visible) return false;
+      if (col.id === 'costPrice' && !showCostPrice) return false;
+      return true;
+    });
+  }, [columns, showCostPrice]);
+
+  // Vị trí left dính cho các cột được ghim
+  const pinnedLeftOffsets = useMemo(() => {
+    let currentLeft = 0;
+    const offsets: Record<string, number> = {};
+    visibleColumns.forEach(col => {
+      if (col.pinned) {
+        offsets[col.id] = currentLeft;
+        currentLeft += col.width;
+      }
+    });
+    return offsets;
+  }, [visibleColumns]);
+
+  // Cột ghim cuối cùng để vẽ viền/bóng đổ phân cách
+  const lastPinnedColId = useMemo(() => {
+    const pinned = visibleColumns.filter(c => c.pinned);
+    return pinned.length > 0 ? pinned[pinned.length - 1].id : null;
+  }, [visibleColumns]);
+
+  // Padding & font size tương ứng với mức giãn dòng
+  const cellPaddingClass = useMemo(() => {
+    if (density === 'compact') return 'py-1.5 px-2.5 text-[11px]';
+    if (density === 'spacious') return 'py-3.5 px-3.5 text-xs';
+    return 'py-2.5 px-3 text-xs';
+  }, [density]);
+
+  return (
+    <div className="w-full px-4 sm:px-6 py-4 space-y-4">
+      
+      {/* KHUNG TRÊN: TAP NHỎ + LỌC (Hợp nhất theo layout chuẩn, bỏ overflow-hidden để popover không bị lấp) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs relative z-30">
+        
+        {/* Hàng 1: Tabs nhỏ + Bộ điều khiển so sánh (Đủ 5 sản phẩm mới so sánh) */}
+        <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
+          
+          {/* Sub-tabs */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeSubTab === 'list'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Danh sách</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('stats')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeSubTab === 'stats'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+              }`}
+            >
+              <span>Thống kê</span>
+            </button>
+          </div>
+
+          {/* VÙNG ĐIỀU KHIỂN SO SÁNH: ĐỦ 5 SP MỚI MỞ NÚT SO SÁNH */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {selectedIds.length > 0 && (
+              <div className="flex items-center gap-2 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
+                <span className="text-[11px] text-slate-600">
+                  Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
+                </span>
+
+                {selectedIds.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSetCompareProducts(selectedIds.slice(0, 5));
+                    }}
+                    className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
+                    title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
+                  >
+                    Đưa 5 SP đầu vào so sánh
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedIds([]);
+                    onSetCompareProducts([]);
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
+                >
+                  Bỏ chọn
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
+                >
+                  Xóa ({selectedIds.length})
+                </button>
+              </div>
+            )}
+
+            {/* NÚT SO SÁNH: ĐỦ 5 SP MỚI BẬT SÁNG, DƯỚI HOẶC TRÊN 5 THÌ MỜ */}
+            {canCompare ? (
+              <button
+                type="button"
+                onClick={onOpenCompare}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/25 animate-pulse transition-all cursor-pointer"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>So Sánh Ngay 5 Sản Phẩm &rarr;</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title="Cần chọn đủ đúng 5 sản phẩm để so sánh"
+                className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-not-allowed select-none opacity-70"
+              >
+                <Scale className="w-3.5 h-3.5 text-slate-300" />
+                {compareIds.length === 0 ? (
+                  <span>Chọn đủ 5 sản phẩm để so sánh (0/5)</span>
+                ) : compareIds.length < 5 ? (
+                  <span>Đã đưa vào so sánh: {compareIds.length}/5 (Cần đủ 5 SP)</span>
+                ) : (
+                  <span>Đang chọn {compareIds.length} SP (Chỉ so sánh đúng 5 SP)</span>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Hàng 2: Thanh công cụ lọc & Tác vụ */}
+        <div className="p-3.5 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl">
+          
+          {/* Vùng lọc bên trái */}
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+            {/* Nút quay lại */}
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Quay lại</span>
+            </button>
+
+            {/* Ô tìm kiếm */}
+            <div className="relative min-w-[220px] flex-1 max-w-sm">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Tìm kiếm theo mã SKU, tên, hãng, thông số..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Bộ lọc Nhóm */}
+            <select
+              value={selectedGroup}
+              onChange={e => setSelectedGroup(e.target.value)}
+              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
+            >
+              <option value="">Tất cả Nhóm</option>
+              {categoryGroups.map((g, i) => (
+                <option key={i} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+
+            {/* Bộ lọc Loại */}
+            <select
+              value={selectedType}
+              onChange={e => setSelectedType(e.target.value)}
+              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
+            >
+              <option value="">Tất cả Loại</option>
+              {categoryTypes.map((t, i) => (
+                <option key={i} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+
+            {/* Nút reset lọc */}
+            {(searchQuery || selectedGroup || selectedType) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedGroup('');
+                  setSelectedType('');
+                }}
+                title="Xóa bộ lọc"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Vùng tác vụ bên phải */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            
+            {/* ICON NHỎ ĐIỀU CHỈNH CỘT (Cạnh nút in) + POPOVER THẢ XUỐNG CHUẨN ERP */}
+            <div className="relative inline-block z-50">
+              <button
+                type="button"
+                onClick={() => setIsColumnSettingsOpen(prev => !prev)}
+                title="Tùy chọn cột & Định dạng (Sắp xếp, Ghim, Ẩn/Hiện, Căn lề, Xuống dòng, Kích thước)"
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                  isColumnSettingsOpen
+                    ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-xs'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </button>
+
+              {isColumnSettingsOpen && (
+                <ColumnOptionsPopover
+                  columns={columns}
+                  onChangeColumns={handleUpdateColumns}
+                  onResetDefaults={handleResetColumns}
+                  density={density}
+                  onDensityChange={handleUpdateDensity}
+                  onClose={() => setIsColumnSettingsOpen(false)}
+                />
+              )}
+            </div>
+
+            {/* In */}
+            <button
+              type="button"
+              onClick={handlePrint}
+              title="In bảng danh sách"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+
+            {/* Nút Kết nối Google Sheet */}
+            <button
+              type="button"
+              onClick={() => setIsSheetsModalOpen(true)}
+              title="Liên kết & Đồng bộ Google Sheet (SO_SANH_GIA)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 transition-all font-semibold text-xs cursor-pointer shadow-2xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden md:inline font-medium">Google Sheet</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Đã kết nối Google Sheet" />
+            </button>
+
+            {/* Xuất CSV */}
+            <button
+              type="button"
+              onClick={onExportCatalog}
+              title="Xuất bảng dữ liệu ra file CSV / Excel"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-slate-500" />
+            </button>
+
+            {/* Chuyển đổi Bảng / Thẻ */}
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'table' ? 'cards' : 'table')}
+              title={viewMode === 'table' ? 'Chuyển sang dạng Thẻ' : 'Chuyển sang dạng Bảng'}
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <List className="w-4 h-4" />}
+            </button>
+
+            {/* Nút + Thêm sản phẩm */}
+            <button
+              type="button"
+              onClick={onOpenAddModal}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Thêm</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* KHUNG DƯỚI: DANH SÁCH SẢN PHẨM (BẢNG DỮ LIỆU FULL WIDTH + KÉO CHỈNH CỘT TRÊN WEB) */}
+      {viewMode === 'table' ? (
+        <div className="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              
+              {/* Header bảng dữ liệu có hỗ trợ KÉO CHỈNH ĐỘ RỘNG TRỰC TIẾP */}
+              <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-semibold select-none">
+                <tr>
+                  {visibleColumns.map(col => {
+                    const isPinned = col.pinned;
+                    const isLastPinned = col.id === lastPinnedColId;
+                    const leftOffset = isPinned ? (pinnedLeftOffsets[col.id] ?? 0) : undefined;
+                    const alignClass =
+                      col.align === 'center'
+                        ? 'text-center'
+                        : col.align === 'right'
+                        ? 'text-right'
+                        : 'text-left';
+
+                    const stickyClass = isPinned
+                      ? `sticky z-20 bg-slate-100/95 backdrop-blur-xs ${
+                          isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''
+                        }`
+                      : 'bg-slate-50/90';
+
+                    if (col.id === 'checkbox') {
+                      return (
+                        <th
+                          key={col.id}
+                          style={{
+                            width: `${col.width}px`,
+                            minWidth: `${col.width}px`,
+                            maxWidth: `${col.width}px`,
+                            ...(isPinned ? { left: `${leftOffset}px` } : {}),
+                          }}
+                          className={`${cellPaddingClass} w-12 text-center relative group select-none ${stickyClass} border-r border-slate-200 last:border-r-0`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isAllSelected}
+                            onChange={toggleSelectAll}
+                            title="Chọn tất cả / Bỏ chọn tất cả"
+                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          {/* Tay cầm kéo độ rộng cột */}
+                          <div
+                            onMouseDown={e => handleStartResize(col.id, e)}
+                            title="Kéo sang trái/phải để chỉnh độ rộng cột"
+                            className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize hover:bg-blue-500/60 group-hover:bg-slate-300 transition-colors z-30"
+                          />
+                        </th>
+                      );
+                    }
+
+                    return (
+                      <th
+                        key={col.id}
+                        style={{
+                          width: `${col.width}px`,
+                          minWidth: `${col.width}px`,
+                          maxWidth: `${col.width}px`,
+                          ...(isPinned ? { left: `${leftOffset}px` } : {}),
+                        }}
+                        className={`${cellPaddingClass} relative group select-none ${alignClass} ${stickyClass} border-r border-slate-200 last:border-r-0`}
+                      >
+                        <span className="truncate block pr-1.5 font-semibold text-slate-700">{col.label}</span>
+
+                        {/* TAY CẦM KÉO CHỈNH KÍCH THƯỚC CỘT TRỰC TIẾP TRÊN WEB */}
+                        <div
+                          onMouseDown={e => handleStartResize(col.id, e)}
+                          title="Kéo sang trái/phải để chỉnh độ rộng cột trực tiếp"
+                          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize hover:bg-blue-500/60 group-hover:bg-slate-300 transition-colors z-30"
+                        />
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              {/* Dòng dữ liệu sản phẩm có đường kẻ dọc và ngang rõ ràng */}
+              <tbody className="divide-y divide-slate-200">
+                {filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
+                      Không tìm thấy sản phẩm nào khớp với tiêu chí tìm kiếm
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProducts.map((prod, idx) => {
+                    const financials = calculateFinancials(prod.pricing);
+                    const isSelected = selectedIds.includes(prod.id);
+                    const colorBg = avatarColors[idx % avatarColors.length];
+                    const totalSpecsCount = prod.specifications.reduce((a, b) => a + b.items.length, 0);
+
+                    return (
+                      <tr
+                        key={prod.id}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-blue-50/40 hover:bg-blue-50/70 font-medium' : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {visibleColumns.map(col => {
+                          const isPinned = col.pinned;
+                          const isLastPinned = col.id === lastPinnedColId;
+                          const leftOffset = isPinned ? (pinnedLeftOffsets[col.id] ?? 0) : undefined;
+                          const alignClass =
+                            col.align === 'center'
+                              ? 'text-center'
+                              : col.align === 'right'
+                              ? 'text-right'
+                              : 'text-left';
+                          const wrapClass = col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap';
+
+                          const stickyClass = isPinned
+                            ? `sticky z-10 ${isSelected ? 'bg-blue-50/95' : 'bg-white'} ${
+                                isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''
+                              }`
+                            : '';
+
+                          const cellBaseClass = `${cellPaddingClass} ${alignClass} ${stickyClass} border-r border-slate-200/80 last:border-r-0`;
+                          const cellStyle: React.CSSProperties = {
+                            width: `${col.width}px`,
+                            minWidth: `${col.width}px`,
+                            maxWidth: `${col.width}px`,
+                            ...(isPinned ? { left: `${leftOffset}px` } : {}),
+                          };
+
+                          // 1. Checkbox
+                          if (col.id === 'checkbox') {
+                            const isCompared = compareIds.includes(prod.id);
+                            const isChecked = selectedIds.includes(prod.id) || isCompared;
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div className="flex items-center justify-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleSelectRow(prod.id)}
+                                    title="Tích chọn để đưa vào so sánh & thao tác"
+                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 2. Thumbnail
+                          if (col.id === 'thumbnail') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div className="flex items-center justify-center">
+                                  {prod.thumbnail ? (
+                                    <img
+                                      src={prod.thumbnail}
+                                      alt={prod.name}
+                                      className="w-8 h-8 object-cover rounded-lg border border-slate-200 shadow-2xs hover:scale-125 transition-transform cursor-pointer bg-white"
+                                      onClick={() => onViewDetail(prod)}
+                                      onError={e => {
+                                        (e.currentTarget as HTMLElement).style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[9px]">
+                                      N/A
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 3. Name
+                          if (col.id === 'name') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-6 h-6 rounded-full ${colorBg} text-white flex items-center justify-center font-bold text-[9px] shrink-0 shadow-2xs`}
+                                  >
+                                    {getInitials(prod.name)}
+                                  </div>
+                                  <div className={`leading-snug min-w-0 ${wrapClass}`}>
+                                    <span
+                                      onClick={() => onViewDetail(prod)}
+                                      className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer"
+                                    >
+                                      {prod.name}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 4. SKU
+                          if (col.id === 'sku') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span className={`font-mono font-bold text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block ${wrapClass}`}>
+                                  {prod.sku}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 5. Brand
+                          if (col.id === 'brand') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span className={`font-semibold text-slate-800 text-xs ${wrapClass}`}>
+                                  {prod.brand || '—'}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 6. Category Group
+                          if (col.id === 'categoryGroup') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-700`}>
+                                <span className={wrapClass}>{prod.categoryGroup || '—'}</span>
+                              </td>
+                            );
+                          }
+
+                          // 7. Category Type
+                          if (col.id === 'categoryType') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-600`}>
+                                <span className={wrapClass}>{prod.categoryType || '—'}</span>
+                              </td>
+                            );
+                          }
+
+                          // Fallback Legacy Category
+                          if (col.id === 'category') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-[11px] text-slate-600`}>
+                                <div className={`font-medium text-slate-800 ${wrapClass}`}>{prod.categoryGroup}</div>
+                                <div className={`text-[10px] text-slate-400 ${wrapClass}`}>{prod.categoryType}</div>
+                              </td>
+                            );
+                          }
+
+                          // 8. Warranty Months
+                          if (col.id === 'warrantyMonths') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                  {prod.warrantyMonths ? `${prod.warrantyMonths} th` : '12 th'}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 9. Cost price
+                          if (col.id === 'costPrice') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} font-mono font-semibold text-emerald-700`}>
+                                {formatVND(prod.pricing.costPrice)}
+                              </td>
+                            );
+                          }
+
+                          // 10. Distributor price
+                          if (col.id === 'distributorPrice') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} font-mono font-bold text-blue-900`}>
+                                {formatVND(prod.pricing.distributorPrice)}
+                              </td>
+                            );
+                          }
+
+                          // 11. Floor price
+                          if (col.id === 'floorPrice') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} font-mono text-amber-800`}>
+                                {formatVND(prod.pricing.floorPrice)}
+                              </td>
+                            );
+                          }
+
+                          // 12. Retail price
+                          if (col.id === 'retailPrice') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} font-mono font-bold text-slate-900`}>
+                                {formatVND(prod.pricing.retailPrice)}
+                              </td>
+                            );
+                          }
+
+                          // 13. Margin
+                          if (col.id === 'margin') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={`${cellBaseClass} font-mono`}>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold inline-block ${
+                                    financials.nppMarginPercent >= 20
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  +{financials.nppMarginPercent}%
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 14. Description (Mô tả sản phẩm)
+                          if (col.id === 'description') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div
+                                  className={`text-xs text-slate-600 line-clamp-2 hover:line-clamp-none cursor-pointer ${wrapClass}`}
+                                  title={prod.description || 'Chưa có mô tả'}
+                                  onClick={() => onViewDetail(prod)}
+                                >
+                                  {prod.description || <span className="text-slate-300 italic">Chưa có mô tả</span>}
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 15. Specs (Thông số kỹ thuật)
+                          if (col.id === 'specs') {
+                            const specsSummary = prod.specifications
+                              .map(g => `${g.groupName}: ${g.items.map(i => `${i.key} ${i.value}`).join(', ')}`)
+                              .join(' | ');
+
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div
+                                  className={`text-xs text-slate-700 cursor-pointer ${wrapClass}`}
+                                  onClick={() => onViewDetail(prod)}
+                                  title={specsSummary || 'Xem chi tiết thông số'}
+                                >
+                                  {prod.specifications.length > 0 ? (
+                                    <div className="space-y-0.5">
+                                      <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block mr-1">
+                                        {prod.specifications.length} nhóm ({totalSpecsCount} mục)
+                                      </span>
+                                      <span className="text-[11px] text-slate-600 line-clamp-1">
+                                        {prod.specifications[0]?.items.slice(0, 2).map(it => `${it.key}: ${it.value}`).join(' • ')}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-300 italic text-[11px]">Chưa bóc tách</span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 16. Tags
+                          if (col.id === 'tags') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div className={`flex flex-wrap gap-1 ${wrapClass}`}>
+                                  {prod.tags && prod.tags.length > 0 ? (
+                                    prod.tags.map((t, tidx) => (
+                                      <span
+                                        key={tidx}
+                                        className="text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80 px-1.5 py-0.2 rounded"
+                                      >
+                                        {t}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-slate-300">—</span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // 17. Notes
+                          if (col.id === 'notes') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span className={`text-xs text-slate-500 italic ${wrapClass}`} title={prod.notes}>
+                                  {prod.notes || '—'}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 18. Status
+                          if (col.id === 'status') {
+                            const isAvailable = prod.status === 'active' || !prod.status;
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                    isAvailable
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                  {isAvailable ? 'Kinh doanh' : 'Hết hàng'}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 19. Updated At
+                          if (col.id === 'updatedAt') {
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <span className="text-slate-500 text-xs font-mono">
+                                  {prod.updatedAt || '—'}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // 20. Actions
+                          if (col.id === 'actions') {
+                            const isCompared = compareIds.includes(prod.id);
+                            return (
+                              <td key={col.id} style={cellStyle} className={cellBaseClass}>
+                                <div className="flex items-center justify-center gap-1">
+                                  {/* Nút thêm/bỏ so sánh trực tiếp */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isCompared) {
+                                        onSetCompareProducts(compareIds.filter(id => id !== prod.id));
+                                        setSelectedIds(prev => prev.filter(id => id !== prod.id));
+                                      } else {
+                                        if (compareIds.length >= 5) {
+                                          alert('Đã chọn tối đa 5 sản phẩm để so sánh!');
+                                          return;
+                                        }
+                                        const next = [...compareIds, prod.id];
+                                        onSetCompareProducts(next);
+                                        setSelectedIds(prev => [...new Set([...prev, prod.id])]);
+                                      }
+                                    }}
+                                    title={isCompared ? 'Bỏ khỏi danh sách so sánh' : 'Thêm vào so sánh (Tối đa 5)'}
+                                    className={`p-1 rounded-md transition-all cursor-pointer ${
+                                      isCompared
+                                        ? 'bg-blue-600 text-white shadow-2xs ring-1 ring-blue-500'
+                                        : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                    }`}
+                                  >
+                                    <Scale className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Chi tiết */}
+                                  <button
+                                    type="button"
+                                    onClick={() => onViewDetail(prod)}
+                                    title="Xem chi tiết sản phẩm"
+                                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Chỉnh sửa */}
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditProduct(prod)}
+                                    title="Chỉnh sửa sản phẩm"
+                                    className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Xóa */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Bạn có chắc chắn muốn xóa sản phẩm ${prod.name}?`)) {
+                                        onDeleteProduct(prod.id);
+                                      }
+                                    }}
+                                    title="Xóa sản phẩm"
+                                    className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+
+            </table>
+          </div>
+
+          {/* Phân trang chân bảng */}
+          <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <span>
+                Hiển thị <strong>1-{filteredProducts.length}</strong> / Tổng <strong>{products.length}</strong> sản phẩm
+              </span>
+              <span>&bull;</span>
+              <span>50 / trang</span>
+            </div>
+
+            <div className="flex items-center gap-1 select-none">
+              <button
+                type="button"
+                disabled
+                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+              >
+                &laquo;
+              </button>
+              <button
+                type="button"
+                disabled
+                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+              >
+                &lsaquo;
+              </button>
+              <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-bold text-xs">
+                1
+              </span>
+              <button
+                type="button"
+                disabled
+                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+              >
+                &rsaquo;
+              </button>
+              <button
+                type="button"
+                disabled
+                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+              >
+                &raquo;
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Dạng thẻ Cards */
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          {filteredProducts.map(product => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              isSelectedForCompare={compareIds.includes(product.id)}
+              onToggleCompare={() => toggleSelectRow(product.id)}
+              onViewDetail={onViewDetail}
+              onEditProduct={onEditProduct}
+              showCostPrice={showCostPrice}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* MODAL LIÊN KẾT & ĐỒNG BỘ GOOGLE SHEET */}
+      <GoogleSheetsSyncModal
+        isOpen={isSheetsModalOpen}
+        onClose={() => setIsSheetsModalOpen(false)}
+        products={products}
+        onUpdateProducts={onUpdateProducts || (() => {})}
+      />
+
+    </div>
+  );
+};

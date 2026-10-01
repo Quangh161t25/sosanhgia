@@ -1,0 +1,1065 @@
+import React, { useState, useEffect } from 'react';
+import { Product, SpecGroup } from '../types/product';
+import {
+  X,
+  Plus,
+  Trash2,
+  Layers,
+  Sparkles,
+  Check,
+  AlertCircle,
+  Key,
+  PackagePlus,
+  Package,
+  Coins,
+  PanelRightClose,
+  PanelRight,
+  PanelRightOpen,
+  ImagePlus,
+  ShieldCheck,
+  Tag,
+  FileText,
+  Star,
+  Save,
+} from 'lucide-react';
+import { formatVND, calculateFinancials } from '../utils/pricing';
+import {
+  parseSpecsWithAI,
+  SAMPLE_SPEC_TEXT_SINGLE,
+  getSavedGeminiKey,
+  saveGeminiKey,
+} from '../utils/aiSpecParser';
+
+interface ProductFormModalProps {
+  productToEdit: Product | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (product: Product) => void;
+}
+
+const SAMPLE_IMAGES = [
+  { label: 'Nồi chiên', url: 'https://images.unsplash.com/photo-1585659722983-3a675dabf23d?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Robot hút bụi', url: 'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Máy khoan pin', url: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Linh kiện modul', url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80' },
+];
+
+export const ProductFormModal: React.FC<ProductFormModalProps> = ({
+  productToEdit,
+  isOpen,
+  onClose,
+  onSave,
+}) => {
+  // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
+  const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
+
+  const [sku, setSku] = useState('');
+  const [name, setName] = useState('');
+  const [categoryGroup, setCategoryGroup] = useState('');
+  const [categoryType, setCategoryType] = useState('');
+  const [brand, setBrand] = useState('');
+  const [thumbnail, setThumbnail] = useState('');
+  const [warrantyMonths, setWarrantyMonths] = useState<number | ''>('');
+  const [tagsInput, setTagsInput] = useState('');
+  const [notes, setNotes] = useState('');
+  const [description, setDescription] = useState('');
+
+  // 4 tầng giá
+  const [costPrice, setCostPrice] = useState<number | ''>('');
+  const [distributorPrice, setDistributorPrice] = useState<number | ''>('');
+  const [floorPrice, setFloorPrice] = useState<number | ''>('');
+  const [retailPrice, setRetailPrice] = useState<number | ''>('');
+
+  // Specifications
+  const [specGroups, setSpecGroups] = useState<SpecGroup[]>([]);
+
+  // AI Spec Extraction States
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiRawText, setAiRawText] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAppendMode, setIsAppendMode] = useState(false);
+  const [apiKey, setApiKey] = useState(getSavedGeminiKey());
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [aiResultMsg, setAiResultMsg] = useState<{ text: string; success: boolean } | null>(null);
+
+  useEffect(() => {
+    if (productToEdit) {
+      setSku(productToEdit.sku);
+      setName(productToEdit.name);
+      setCategoryGroup(productToEdit.categoryGroup || '');
+      setCategoryType(productToEdit.categoryType || '');
+      setBrand(productToEdit.brand || '');
+      setThumbnail(productToEdit.thumbnail || '');
+      setWarrantyMonths(productToEdit.warrantyMonths ?? 12);
+      setTagsInput(productToEdit.tags?.join(', ') || '');
+      setNotes(productToEdit.notes || '');
+      setDescription(productToEdit.description || '');
+      setCostPrice(productToEdit.pricing.costPrice);
+      setDistributorPrice(productToEdit.pricing.distributorPrice);
+      setFloorPrice(productToEdit.pricing.floorPrice);
+      setRetailPrice(productToEdit.pricing.retailPrice);
+      setSpecGroups(JSON.parse(JSON.stringify(productToEdit.specifications || [])));
+      setIsAiOpen(false);
+      setAiRawText('');
+    } else {
+      setSku('');
+      setName('');
+      setCategoryGroup('');
+      setCategoryType('');
+      setBrand('');
+      setThumbnail('');
+      setWarrantyMonths('');
+      setTagsInput('');
+      setNotes('');
+      setDescription('');
+      setCostPrice('');
+      setDistributorPrice('');
+      setFloorPrice('');
+      setRetailPrice('');
+      setSpecGroups([]);
+      setIsAiOpen(false);
+      setAiRawText('');
+    }
+  }, [productToEdit, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setApiKey(getSavedGeminiKey());
+      setAiResultMsg(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // Live financials preview
+  const liveFinancials = calculateFinancials({
+    costPrice: Number(costPrice) || 0,
+    distributorPrice: Number(distributorPrice) || 0,
+    floorPrice: Number(floorPrice) || 0,
+    retailPrice: Number(retailPrice) || 0,
+    currency: 'VND',
+  });
+
+  const handleSaveApiKey = () => {
+    saveGeminiKey(apiKey);
+    setShowApiKeyInput(false);
+  };
+
+  const handleRunAiSpecParse = async () => {
+    if (!aiRawText.trim()) return;
+    setIsAiLoading(true);
+    setAiResultMsg(null);
+    try {
+      const { groups, usedGemini } = await parseSpecsWithAI(aiRawText, apiKey);
+      if (groups.length === 0) {
+        setAiResultMsg({
+          text: 'Không tìm thấy thông số nào từ văn bản. Vui lòng kiểm tra lại định dạng.',
+          success: false,
+        });
+        return;
+      }
+
+      if (isAppendMode) {
+        setSpecGroups(prev => [...prev, ...groups]);
+      } else {
+        setSpecGroups(groups);
+      }
+
+      const totalItems = groups.reduce((acc, g) => acc + g.items.length, 0);
+      setAiResultMsg({
+        text: `Đã phân tích thành công ${groups.length} nhóm với ${totalItems} thông số (${usedGemini ? 'Google Gemini AI' : 'Bộ phân tích Heuristic'})!`,
+        success: true,
+      });
+    } catch (err: any) {
+      setAiResultMsg({
+        text: 'Có lỗi xảy ra khi phân tích: ' + (err?.message || 'Không rõ'),
+        success: false,
+      });
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAddSpecGroup = () => {
+    setSpecGroups([
+      ...specGroups,
+      {
+        groupName: 'Nhóm thông số mới',
+        items: [{ key: '', value: '', isHighlight: false }],
+      },
+    ]);
+  };
+
+  const handleRemoveSpecGroup = (groupIndex: number) => {
+    setSpecGroups(specGroups.filter((_, i) => i !== groupIndex));
+  };
+
+  const handleAddSpecItem = (groupIndex: number) => {
+    const updated = [...specGroups];
+    updated[groupIndex].items.push({ key: '', value: '', isHighlight: false });
+    setSpecGroups(updated);
+  };
+
+  const handleRemoveSpecItem = (groupIndex: number, itemIndex: number) => {
+    const updated = [...specGroups];
+    updated[groupIndex].items = updated[groupIndex].items.filter((_, i) => i !== itemIndex);
+    setSpecGroups(updated);
+  };
+
+  const handleUpdateItemKey = (groupIndex: number, itemIndex: number, newKey: string) => {
+    const updated = [...specGroups];
+    updated[groupIndex].items[itemIndex].key = newKey;
+    setSpecGroups(updated);
+  };
+
+  const handleUpdateItemValue = (groupIndex: number, itemIndex: number, newValue: string) => {
+    const updated = [...specGroups];
+    updated[groupIndex].items[itemIndex].value = newValue;
+    setSpecGroups(updated);
+  };
+
+  const handleToggleItemHighlight = (groupIndex: number, itemIndex: number) => {
+    const updated = [...specGroups];
+    const cur = updated[groupIndex].items[itemIndex].isHighlight;
+    updated[groupIndex].items[itemIndex].isHighlight = !cur;
+    setSpecGroups(updated);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sku.trim() || !name.trim()) return;
+
+    const parsedTags = tagsInput
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => Boolean(t));
+
+    const updatedProduct: Product = {
+      id: productToEdit ? productToEdit.id : `prod-${Date.now()}`,
+      sku: sku.trim().toUpperCase(),
+      name: name.trim(),
+      categoryGroup: categoryGroup.trim(),
+      categoryType: categoryType.trim(),
+      brand: brand.trim(),
+      thumbnail: thumbnail.trim(),
+      warrantyMonths: warrantyMonths === '' ? 12 : Number(warrantyMonths),
+      pricing: {
+        costPrice: Number(costPrice) || 0,
+        distributorPrice: Number(distributorPrice) || 0,
+        floorPrice: Number(floorPrice) || 0,
+        retailPrice: Number(retailPrice) || 0,
+        currency: 'VND',
+      },
+      specifications: specGroups.filter(g => g.items.length > 0),
+      tags: parsedTags,
+      notes: notes.trim(),
+      description: description.trim(),
+      status: 'active',
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+
+    onSave(updatedProduct);
+    onClose();
+  };
+
+  // Xác định chiều rộng theo panelWidth
+  const panelWidthStyle =
+    panelWidth === 'narrow'
+      ? 'min(540px, 100vw)'
+      : panelWidth === 'wide'
+      ? 'min(1100px, 100vw)'
+      : 'min(768px, -4rem + 100vw)';
+
+  return (
+    <>
+      {/* Backdrop mờ nền */}
+      <div
+        className="fixed inset-0 bg-black/40 backdrop-blur-2xs z-50 transition-opacity animate-in fade-in duration-200"
+        onClick={onClose}
+      />
+
+      {/* Ngăn bên Slide-Over Drawer chuẩn ERP */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={productToEdit ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}
+        tabIndex={-1}
+        style={{
+          zIndex: 61,
+          width: panelWidthStyle,
+          transform: 'none',
+        }}
+        className="fixed inset-y-0 right-0 w-full bg-card shadow-ultra flex flex-col h-[100dvh] border-l border-border/40 outline-none transform-gpu animate-in slide-in-from-right duration-200"
+      >
+        {/* Phần 1: Header ngăn bên */}
+        <div
+          className="flex items-center justify-between gap-4 border-b border-border/60 bg-card shrink-0"
+          style={{
+            paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))',
+            paddingBottom: '0.5rem',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+              <PackagePlus className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-foreground leading-tight truncate">
+                {productToEdit ? 'Chỉnh sửa sản phẩm & Modul' : 'Thêm sản phẩm mới'}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                {productToEdit
+                  ? 'Cập nhật thông tin chi tiết, 4 tầng giá và thông số kỹ thuật'
+                  : 'Thiết lập thông tin sản phẩm và phân tích AI vào hệ thống'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Nhóm nút điều chỉnh bề rộng ngăn bên (Hẹp | Chuẩn | Rộng) */}
+            <div
+              role="group"
+              aria-label="Bề rộng ngăn bên"
+              className="flex items-center gap-0.5 shrink-0 rounded-xl border border-border/60 p-0.5"
+            >
+              <button
+                type="button"
+                aria-pressed={panelWidth === 'narrow'}
+                aria-label="Hẹp"
+                title="Bề rộng hẹp (540px)"
+                onClick={() => setPanelWidth('narrow')}
+                className={`p-2 rounded-lg transition-colors active:scale-90 cursor-pointer ${
+                  panelWidth === 'narrow'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <PanelRightClose className="w-4 h-4 stroke-[2.5px]" aria-hidden="true" />
+              </button>
+
+              <button
+                type="button"
+                aria-pressed={panelWidth === 'standard'}
+                aria-label="Chuẩn"
+                title="Bề rộng chuẩn (768px)"
+                onClick={() => setPanelWidth('standard')}
+                className={`p-2 rounded-lg transition-colors active:scale-90 cursor-pointer ${
+                  panelWidth === 'standard'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <PanelRight className="w-4 h-4 stroke-[2.5px]" aria-hidden="true" />
+              </button>
+
+              <button
+                type="button"
+                aria-pressed={panelWidth === 'wide'}
+                aria-label="Rộng"
+                title="Bề rộng rộng (1100px)"
+                onClick={() => setPanelWidth('wide')}
+                className={`p-2 rounded-lg transition-colors active:scale-90 cursor-pointer ${
+                  panelWidth === 'wide'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <PanelRightOpen className="w-4 h-4 stroke-[2.5px]" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Nút đóng */}
+            <button
+              type="button"
+              aria-label="Đóng"
+              onClick={onClose}
+              className="p-2.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors active:scale-90 shrink-0 cursor-pointer"
+            >
+              <X className="w-5 h-5 stroke-[2.5px]" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {/* Phần 2: Nội dung cuộn chính */}
+        <div className="flex-1 overflow-y-auto bg-muted/50 p-4 sm:p-5 custom-scrollbar">
+          <div className="max-w-4xl mx-auto">
+            <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* CARD 1: THÔNG TIN CƠ BẢN & HÌNH ẢNH */}
+              <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
+                  <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
+                    <Package className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span className="truncate">Thông tin cơ bản &amp; Hình ảnh</span>
+                  </h4>
+                </div>
+
+                {/* Khung tải ảnh tròn Avatar đại diện */}
+                <div className="flex flex-col items-center justify-center mb-2">
+                  <div className="w-24">
+                    <div className="relative group/frame mx-auto w-full">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        title="Ảnh đại diện sản phẩm"
+                        className="relative overflow-hidden border-2 transition-all duration-200 mx-auto rounded-full border-dashed cursor-pointer border-border hover:border-primary/40 bg-muted/30 hover:bg-muted/50 aspect-square flex items-center justify-center shadow-2xs"
+                      >
+                        {thumbnail ? (
+                          <img
+                            src={thumbnail}
+                            alt={name || 'Thumbnail'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors bg-muted text-muted-foreground">
+                              <ImagePlus className="w-4 h-4" aria-hidden="true" />
+                            </div>
+                            <p className="text-xs font-medium transition-colors leading-tight text-muted-foreground">
+                              Ảnh đại diện
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nút chọn nhanh ảnh mẫu */}
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2.5">
+                    <span className="text-[11px] text-muted-foreground">Ảnh mẫu:</span>
+                    {SAMPLE_IMAGES.map((img, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setThumbnail(img.url)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          thumbnail === img.url
+                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {img.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Form fields Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
+                  {/* Họ tên / Tên sản phẩm */}
+                  <div className="w-full sm:col-span-2">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Package className="w-3 h-3" />
+                      </span>
+                      Tên sản phẩm đầy đủ
+                      <span className="text-destructive ml-0.5 font-bold">*</span>
+                    </label>
+                    <input
+                      required
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder="VD: Nồi Chiên Không Dầu Điện Tử 6.5L QuickSteam Pro"
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic font-medium"
+                    />
+                  </div>
+
+                  {/* Mã SKU / Modul */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Tag className="w-3 h-3" />
+                      </span>
+                      Mã Modul / SKU
+                      <span className="text-destructive ml-0.5 font-bold">*</span>
+                    </label>
+                    <input
+                      required
+                      value={sku}
+                      onChange={e => setSku(e.target.value.toUpperCase())}
+                      placeholder="VD: NC-AF65PRO"
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 font-mono font-bold uppercase"
+                    />
+                  </div>
+
+                  {/* Thương hiệu */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Package className="w-3 h-3" />
+                      </span>
+                      Thương hiệu / Hãng
+                    </label>
+                    <input
+                      value={brand}
+                      onChange={e => setBrand(e.target.value)}
+                      placeholder="VD: AeroChef, PowerTorq, RoboMaster..."
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic"
+                    />
+                  </div>
+
+                  {/* Nhóm sản phẩm */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Layers className="w-3 h-3" />
+                      </span>
+                      Nhóm danh mục
+                    </label>
+                    <input
+                      value={categoryGroup}
+                      onChange={e => setCategoryGroup(e.target.value)}
+                      placeholder="VD: Điện gia dụng, Dụng cụ cầm tay..."
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40"
+                    />
+                  </div>
+
+                  {/* Loại sản phẩm */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Layers className="w-3 h-3" />
+                      </span>
+                      Loại sản phẩm
+                    </label>
+                    <input
+                      value={categoryType}
+                      onChange={e => setCategoryType(e.target.value)}
+                      placeholder="VD: Nồi chiên không dầu, Robot hút bụi..."
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40"
+                    />
+                  </div>
+
+                  {/* Bảo hành (tháng) */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <ShieldCheck className="w-3 h-3" />
+                      </span>
+                      Thời hạn bảo hành (tháng)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={warrantyMonths}
+                      placeholder="12"
+                      onChange={e => setWarrantyMonths(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40"
+                    />
+                  </div>
+
+                  {/* Thẻ tag */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <Tag className="w-3 h-3" />
+                      </span>
+                      Nhãn / Tags (cách nhau dấu phẩy)
+                    </label>
+                    <input
+                      value={tagsInput}
+                      onChange={e => setTagsInput(e.target.value)}
+                      placeholder="VD: Bán chạy, Công nghệ mới, Hàng hot"
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic"
+                    />
+                  </div>
+
+                  {/* URL ảnh trực tiếp */}
+                  <div className="w-full sm:col-span-2">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <ImagePlus className="w-3 h-3" />
+                      </span>
+                      Đường dẫn URL hình ảnh sản phẩm
+                    </label>
+                    <input
+                      type="url"
+                      value={thumbnail}
+                      onChange={e => setThumbnail(e.target.value)}
+                      placeholder="https://..."
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic font-mono text-[11px]"
+                    />
+                  </div>
+
+                  {/* Mô tả sản phẩm (Dùng để AI bóc tách thông số) */}
+                  <div className="w-full sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-medium leading-none flex items-center gap-1.5 text-muted-foreground">
+                        <span className="text-muted-foreground shrink-0">
+                          <FileText className="w-3 h-3" />
+                        </span>
+                        Mô tả sản phẩm (Đồng bộ cột Google Sheet &amp; AI bóc tách)
+                      </label>
+                      {description.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiRawText(description);
+                            setIsAiOpen(true);
+                          }}
+                          className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>Đưa vào AI bóc tách thông số</span>
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder="VD: Nồi chiên không dầu dung tích 6.5L, công suất 1800W mạnh mẽ. Dải nhiệt 40-230 độ C, lòng nồi Ceramic chống dính, cửa kính quan sát, bảo hành 24 tháng..."
+                      className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Ghi chú chính sách */}
+                  <div className="w-full sm:col-span-2">
+                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span className="text-muted-foreground shrink-0">
+                        <FileText className="w-3 h-3" />
+                      </span>
+                      Ghi chú chính sách &amp; bán hàng
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder="Chiết khấu thêm 3% cho đơn trên 50 bộ..."
+                      className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 2: CƠ CẤU 4 TẦNG GIÁ & TÀI CHÍNH */}
+              <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
+                  <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
+                    <Coins className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span className="truncate">Cơ cấu 4 tầng giá (VND)</span>
+                  </h4>
+                  <div className="text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    Biên LN NPP: +{liveFinancials.nppMarginPercent}% ({formatVND(liveFinancials.nppGross)})
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* 1. Giá nhập */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 block text-emerald-700 dark:text-emerald-400">
+                      1. Giá nhập (Gốc)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={10000}
+                      value={costPrice}
+                      placeholder="0"
+                      onChange={e => setCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-500/5 px-3 py-2 text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  {/* 2. Giá NPP */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 block text-blue-700 dark:text-blue-400">
+                      2. Giá NPP (Đại lý)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={10000}
+                      value={distributorPrice}
+                      placeholder="0"
+                      onChange={e => setDistributorPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-500/5 px-3 py-2 text-xs font-mono font-bold text-blue-900 dark:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    />
+                  </div>
+
+                  {/* 3. Giá sàn */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 block text-amber-700 dark:text-amber-400">
+                      3. Giá sàn
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={10000}
+                      value={floorPrice}
+                      placeholder="0"
+                      onChange={e => setFloorPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-500/5 px-3 py-2 text-xs font-mono font-bold text-amber-900 dark:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* 4. Giá bán lẻ */}
+                  <div className="w-full">
+                    <label className="text-xs font-medium leading-none mb-1.5 block text-foreground font-semibold">
+                      4. Giá bán lẻ niêm yết
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={10000}
+                      value={retailPrice}
+                      placeholder="0"
+                      onChange={e => setRetailPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Băng đo tài chính trực quan */}
+                <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground font-mono">
+                  <div>
+                    Chiết khấu sàn:{' '}
+                    <strong className="text-foreground">{liveFinancials.discountBufferPercent}%</strong>
+                  </div>
+                  <div>
+                    Biên LN bán lẻ:{' '}
+                    <strong className="text-emerald-600 font-bold">
+                      +{liveFinancials.retailMarginPercent}% ({formatVND(liveFinancials.retailGross)})
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 3: TRỢ LÝ BÓC TÁCH THÔNG SỐ BẰNG AI (CHỈ CÓ Ở ADD/EDIT) */}
+              <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
+                  <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span className="truncate">Trợ lý AI bóc tách thông số kỹ thuật</span>
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAiOpen(!isAiOpen)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                        isAiOpen
+                          ? 'bg-primary text-primary-foreground shadow-xs'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{isAiOpen ? 'Đóng AI' : 'Mở công cụ AI'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {isAiOpen ? (
+                  <div className="space-y-3 pt-1 animate-in fade-in duration-150">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Dán đoạn văn bản thông số kỹ thuật (từ brochure, website...), AI sẽ tự động bóc tách thành các nhóm chuẩn.
+                      </p>
+                      <div className="flex items-center gap-2 text-xs">
+                        {apiKey ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/30">
+                            ✨ Gemini Flash AI
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] font-semibold border border-blue-500/30">
+                            ⚡ AI Heuristic Cục Bộ
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                        >
+                          <Key className="w-3 h-3" />
+                          {apiKey ? 'Sửa Key' : 'Cấu hình Key'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {showApiKeyInput && (
+                      <div className="p-2.5 bg-muted/40 rounded-xl border border-border space-y-1.5 text-xs">
+                        <span className="font-semibold text-foreground text-[11px]">
+                          Google Gemini API Key:
+                        </span>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={apiKey}
+                            onChange={e => setApiKey(e.target.value)}
+                            placeholder="Dán API Key từ Google AI Studio..."
+                            className="flex-1 px-2.5 py-1 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveApiKey}
+                            className="px-3 py-1 bg-primary text-primary-foreground rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" />
+                            Lưu
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-medium text-foreground">Dán nội dung thông số kỹ thuật:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAiRawText(SAMPLE_SPEC_TEXT_SINGLE)}
+                            className="text-primary hover:underline font-medium cursor-pointer"
+                          >
+                            Dán mẫu thử
+                          </button>
+                          {aiRawText && (
+                            <button
+                              type="button"
+                              onClick={() => setAiRawText('')}
+                              className="text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              Xóa
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <textarea
+                        rows={4}
+                        value={aiRawText}
+                        onChange={e => setAiRawText(e.target.value)}
+                        placeholder="VD:
+Công suất: 1800W
+Dung tích: 6.5 Lít
+Điện áp: 220V - 50Hz
+Kích thước: 360 x 300 x 325 mm..."
+                        className="w-full p-2.5 text-xs font-mono rounded-lg border border-border bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isAppendMode}
+                          onChange={e => setIsAppendMode(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-primary border-border focus:ring-primary"
+                        />
+                        <span>Gộp thêm vào nhóm hiện có (không ghi đè)</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        disabled={isAiLoading || !aiRawText.trim()}
+                        onClick={handleRunAiSpecParse}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
+                          isAiLoading || !aiRawText.trim()
+                            ? 'bg-muted-foreground/40 cursor-not-allowed text-muted'
+                            : 'bg-primary hover:bg-primary/90'
+                        }`}
+                      >
+                        {isAiLoading ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Đang phân tích...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Bắt đầu bóc tách AI</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {aiResultMsg && (
+                      <div
+                        className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                          aiResultMsg.success
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {aiResultMsg.success ? (
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        )}
+                        <span>{aiResultMsg.text}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Bấm &quot;Mở công cụ AI&quot; để dán nhanh đoạn văn bản thông số kỹ thuật nhiều dòng và tự động chia nhóm.
+                  </p>
+                )}
+              </div>
+
+              {/* CARD 4: THÔNG SỐ KỸ THUẬT THEO NHÓM */}
+              <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
+                  <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
+                    <Layers className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span className="truncate">
+                      Thông số kỹ thuật ({specGroups.length} nhóm)
+                    </span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={handleAddSpecGroup}
+                    className="text-xs font-semibold text-primary hover:bg-primary/10 px-2.5 py-1 rounded-lg flex items-center gap-1 border border-primary/30 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Thêm nhóm</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {specGroups.length === 0 ? (
+                    <div className="text-center py-6 px-4 border border-dashed border-border rounded-xl bg-muted/20">
+                      <p className="text-xs text-muted-foreground mb-3 font-medium">
+                        Chưa có nhóm thông số kỹ thuật nào.
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAddSpecGroup}
+                          className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/30 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Tạo nhóm thủ công</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsAiOpen(true)}
+                          className="text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Dùng AI bóc tách nhanh</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    specGroups.map((group, gIdx) => (
+                      <div
+                        key={gIdx}
+                        className="border border-border rounded-xl p-3 bg-muted/20 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            value={group.groupName}
+                            onChange={e => {
+                              const updated = [...specGroups];
+                              updated[gIdx].groupName = e.target.value;
+                              setSpecGroups(updated);
+                            }}
+                            placeholder="Tên nhóm thông số..."
+                            className="font-bold text-xs text-foreground bg-background px-2.5 py-1 rounded-md border border-border focus:outline-none focus:border-primary flex-1 max-w-xs"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAddSpecItem(gIdx)}
+                              className="text-xs text-primary hover:underline font-medium cursor-pointer"
+                            >
+                              + Thêm dòng
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSpecGroup(gIdx)}
+                              title="Xóa nhóm này"
+                              className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Danh sách thuộc tính & giá trị */}
+                        <div className="space-y-1.5">
+                          {group.items.map((item, iIdx) => (
+                            <div key={iIdx} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                placeholder="Tên thuộc tính (vd: Công suất)"
+                                value={item.key}
+                                onChange={e => handleUpdateItemKey(gIdx, iIdx, e.target.value)}
+                                className="w-1/3 px-2.5 py-1.5 text-xs rounded-md border border-border bg-background text-foreground"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Giá trị (vd: 1800W)"
+                                value={item.value}
+                                onChange={e => handleUpdateItemValue(gIdx, iIdx, e.target.value)}
+                                className="flex-1 px-2.5 py-1.5 text-xs rounded-md border border-border bg-background text-foreground font-medium"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleToggleItemHighlight(gIdx, iIdx)}
+                                title={item.isHighlight ? 'Bỏ nổi bật' : 'Đánh dấu nổi bật'}
+                                className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                  item.isHighlight
+                                    ? 'text-amber-500 bg-amber-500/10'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                              >
+                                <Star className={`w-3.5 h-3.5 ${item.isHighlight ? 'fill-current' : ''}`} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSpecItem(gIdx, iIdx)}
+                                title="Xóa dòng này"
+                                className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-colors cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </form>
+          </div>
+        </div>
+
+        {/* Phần 3: Footer chân trang dính */}
+        <div
+          className="bg-card border-t border-border/60 flex flex-col-reverse sm:flex-row items-center shadow-sticky shrink-0 w-full gap-2"
+          style={{
+            paddingTop: '0.5rem',
+            paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          }}
+        >
+          <div className="flex items-center justify-between w-full gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium ring-offset-background transition-colors border bg-background hover:bg-muted hover:text-foreground h-8 px-3 text-xs border-border text-muted-foreground cursor-pointer"
+            >
+              Hủy
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                form="product-form"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium ring-offset-background transition-colors h-8 px-3.5 text-xs bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+                {productToEdit ? 'Cập nhật' : 'Thêm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};

@@ -1,0 +1,6 @@
+{
+  "name": "ProCompare - Hệ Thống So Sánh Sản Phẩm Đa Tầng Giá",
+  "description": "Ứng dụng so sánh sản phẩm B2B/B2C chuyên nghiệp với 4 tầng giá (Giá nhập, NPP, Sàn, Thương mại), phân tích biên lợi nhuận, bộ lọc thông minh và bảng so sánh ma trận linh hoạt.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
