@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Layers, Key, Check, RotateCcw, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { getSavedGeminiKey, saveGeminiKey } from '../../utils/aiSpecParser';
+import { Layers, Key, Check, RotateCcw, ShieldCheck, Eye, EyeOff, ArrowLeft, Sparkles, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { getSavedGeminiKey, saveGeminiKey, testGeminiApiKey } from '../../utils/aiSpecParser';
 
 interface SystemViewProps {
   onBackToHome: () => void;
@@ -19,11 +19,31 @@ export const SystemView: React.FC<SystemViewProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState(getSavedGeminiKey());
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testKeyResult, setTestKeyResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSaveKey = () => {
     saveGeminiKey(apiKey);
     setSaveSuccess(true);
+    setTestKeyResult(null);
     setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) return;
+    setIsTestingKey(true);
+    setTestKeyResult(null);
+    try {
+      const res = await testGeminiApiKey(apiKey);
+      setTestKeyResult(res);
+      if (res.success) {
+        saveGeminiKey(apiKey);
+      }
+    } catch (e: any) {
+      setTestKeyResult({ success: false, message: e?.message || 'Lỗi kiểm tra API Key' });
+    } finally {
+      setIsTestingKey(false);
+    }
   };
 
   return (
@@ -46,16 +66,26 @@ export const SystemView: React.FC<SystemViewProps> = ({
 
       {/* 1. Google Gemini AI Engine Configuration */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-            <Key className="w-5 h-5" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+              <Key className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Cấu Hình Google Gemini AI API Key</h3>
+              <p className="text-xs text-slate-500">
+                Sử dụng mô hình Gemini 1.5 Flash / 2.0 Flash để bóc tách thông số kỹ thuật tự động
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Cấu Hình Google Gemini AI API Key</h3>
-            <p className="text-xs text-slate-500">
-              Sử dụng mô hình Gemini 2.5 Flash / 1.5 Flash để bóc tách thông số kỹ thuật tự động
-            </p>
-          </div>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium"
+          >
+            Lấy API Key Google AI Studio <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
 
         <div className="space-y-2 pt-1">
@@ -64,27 +94,53 @@ export const SystemView: React.FC<SystemViewProps> = ({
             <input
               type="password"
               value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
+              onChange={e => {
+                setApiKey(e.target.value);
+                setTestKeyResult(null);
+              }}
               placeholder="Dán API Key (vd: AIzaSy...)"
               className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="button"
+              onClick={handleTestKey}
+              disabled={isTestingKey || !apiKey.trim()}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              {isTestingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-blue-600" />}
+              <span>Kiểm tra Key</span>
+            </button>
+            <button
+              type="button"
               onClick={handleSaveKey}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Lưu cấu hình</span>
             </button>
           </div>
-          {saveSuccess && (
+
+          {testKeyResult && (
+            <div
+              className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                testKeyResult.success
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              {testKeyResult.success ? <Check className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />}
+              <span className="font-medium">{testKeyResult.message}</span>
+            </div>
+          )}
+
+          {saveSuccess && !testKeyResult && (
             <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
               <Check className="w-3.5 h-3.5" />
               <span>Đã lưu API Key vào trình duyệt thành công!</span>
             </div>
           )}
           <p className="text-[11px] text-slate-400">
-            * Nếu không điền API Key, hệ thống tự động chạy bộ phân tích Heuristic AI cục bộ siêu tốc không cần kết nối mạng.
+            * Nếu không điền API Key hoặc API Key không khả dụng, hệ thống tự động chạy bộ phân tích Heuristic AI cục bộ siêu tốc.
           </p>
         </div>
       </div>

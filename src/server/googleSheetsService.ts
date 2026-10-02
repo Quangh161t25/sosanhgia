@@ -695,18 +695,20 @@ export async function parseSpecsFromRawText(rawText: string, customApiKey?: stri
   // 1. Thử gọi Gemini AI nếu có key
   const apiKey = (customApiKey || process.env.GEMINI_API_KEY || '').trim();
   if (apiKey) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const prompt = `Bạn là chuyên gia phân tích dữ liệu kỹ thuật sản phẩm và so sánh thông số B2B.
+    const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    for (const model of models) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const prompt = `Bạn là chuyên gia phân tích dữ liệu kỹ thuật sản phẩm và so sánh thông số B2B.
 Nhiệm vụ: Hãy phân tích đoạn mô tả kỹ thuật sản phẩm sau đây và trích xuất thành danh sách các nhóm thông số kỹ thuật (SpecGroup).
-Mỗi nhóm gồm 'groupName' (ví dụ: 'Thông số vận hành', 'Kích thước & Thiết kế', 'Công nghệ & Tiện ích', 'Nguồn điện & Tiêu thụ', 'Tiện ích & Bảo hành'...) và danh sách 'items' (mỗi item có 'key', 'value', và 'isHighlight': boolean nếu là thông số nổi bật quan trọng).
+Mỗi nhóm gồm 'groupName' (ví dụ: 'Thông số vận hành', 'Kích thước & Thiết kế', 'Công nghệ & Tiện ích', 'Nguồn điện & Tiêu thụ', 'Tiêu chuẩn & Bảo hành'...) và danh sách 'items' (mỗi item có 'key', 'value', và 'isHighlight': boolean nếu là thông số nổi bật quan trọng).
 
 Văn bản mô tả đầu vào:
 """
 ${rawText}
 """
 
-YÊU CẦU: Trả về DUY NHẤT một JSON array hợp lệ (không chứa markdown triple backtick):
+YÊU CẦU: Trả về DUY NHẤT một JSON array hợp lệ:
 [
   {
     "groupName": "Tên nhóm",
@@ -716,33 +718,34 @@ YÊU CẦU: Trả về DUY NHẤT một JSON array hợp lệ (không chứa mar
   }
 ]`;
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 2048,
-          },
-        }),
-      });
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+            },
+          }),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        const cand = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        let cleaned = cand.trim();
-        if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/, '');
-        if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/, '');
-        if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
-        cleaned = cleaned.trim();
-        const parsed = JSON.parse(cleaned);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (res.ok) {
+          const data = await res.json();
+          const cand = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          let cleaned = cand.trim();
+          if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/, '');
+          if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/, '');
+          if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
+          cleaned = cleaned.trim();
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
         }
+      } catch (e) {
+        console.warn(`Gemini API (${model}) failed:`, e);
       }
-    } catch (e) {
-      console.warn('Gemini API spec parse failed, falling back to local regex:', e);
     }
   }
 

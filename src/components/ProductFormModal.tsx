@@ -21,6 +21,8 @@ import {
   FileText,
   Star,
   Save,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { formatVND, calculateFinancials } from '../utils/pricing';
 import {
@@ -28,6 +30,7 @@ import {
   SAMPLE_SPEC_TEXT_SINGLE,
   getSavedGeminiKey,
   saveGeminiKey,
+  testGeminiApiKey,
 } from '../utils/aiSpecParser';
 
 interface ProductFormModalProps {
@@ -140,9 +143,30 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     currency: 'VND',
   });
 
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testKeyResult, setTestKeyResult] = useState<{ success: boolean; message: string } | null>(null);
+
   const handleSaveApiKey = () => {
     saveGeminiKey(apiKey);
     setShowApiKeyInput(false);
+    setTestKeyResult(null);
+  };
+
+  const handleTestApiKey = async () => {
+    if (!apiKey.trim()) return;
+    setIsTestingKey(true);
+    setTestKeyResult(null);
+    try {
+      const res = await testGeminiApiKey(apiKey);
+      setTestKeyResult(res);
+      if (res.success) {
+        saveGeminiKey(apiKey);
+      }
+    } catch (e: any) {
+      setTestKeyResult({ success: false, message: e?.message || 'Lỗi kiểm tra API Key' });
+    } finally {
+      setIsTestingKey(false);
+    }
   };
 
   const handleRunAiSpecParse = async () => {
@@ -150,7 +174,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     setIsAiLoading(true);
     setAiResultMsg(null);
     try {
-      const { groups, usedGemini } = await parseSpecsWithAI(aiRawText, apiKey);
+      const { groups, usedGemini, error } = await parseSpecsWithAI(aiRawText, apiKey);
       if (groups.length === 0) {
         setAiResultMsg({
           text: 'Không tìm thấy thông số nào từ văn bản. Vui lòng kiểm tra lại định dạng.',
@@ -167,7 +191,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       const totalItems = groups.reduce((acc, g) => acc + g.items.length, 0);
       setAiResultMsg({
-        text: `Đã phân tích thành công ${groups.length} nhóm với ${totalItems} thông số (${usedGemini ? 'Google Gemini AI' : 'Bộ phân tích Heuristic'})!`,
+        text: usedGemini
+          ? `✨ Đã bóc tách thành công ${groups.length} nhóm với ${totalItems} thông số bằng Google Gemini AI!`
+          : `Đã phân tích thành công ${groups.length} nhóm với ${totalItems} thông số (Bộ phân tích thông minh Heuristic)${error ? ` - Lưu ý AI: ${error}` : ''}!`,
         success: true,
       });
     } catch (err: any) {
@@ -778,27 +804,61 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     {showApiKeyInput && (
-                      <div className="p-2.5 bg-muted/40 rounded-xl border border-border space-y-1.5 text-xs">
-                        <span className="font-semibold text-foreground text-[11px]">
-                          Google Gemini API Key:
-                        </span>
+                      <div className="p-2.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground text-[11px]">
+                            Google Gemini API Key:
+                          </span>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                          >
+                            Lấy Key miễn phí <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
                         <div className="flex gap-2">
                           <input
                             type="password"
                             value={apiKey}
-                            onChange={e => setApiKey(e.target.value)}
-                            placeholder="Dán API Key từ Google AI Studio..."
+                            onChange={e => {
+                              setApiKey(e.target.value);
+                              setTestKeyResult(null);
+                            }}
+                            placeholder="AIzaSy..."
                             className="flex-1 px-2.5 py-1 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
                           />
                           <button
                             type="button"
+                            onClick={handleTestApiKey}
+                            disabled={isTestingKey || !apiKey.trim()}
+                            className="px-2.5 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {isTestingKey ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            Kiểm tra
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleSaveApiKey}
-                            className="px-3 py-1 bg-primary text-primary-foreground rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                           >
                             <Check className="w-3 h-3" />
                             Lưu
                           </button>
                         </div>
+                        {testKeyResult && (
+                          <div
+                            className={`p-1.5 rounded text-[11px] flex items-center gap-1.5 ${
+                              testKeyResult.success
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                            }`}
+                          >
+                            {testKeyResult.success ? <Check className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                            <span>{testKeyResult.message}</span>
+                          </div>
+                        )}
                       </div>
                     )}
 

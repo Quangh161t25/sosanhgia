@@ -112,24 +112,27 @@ Bảo hành: 12 tháng
 
 const KNOWN_GROUP_KEYWORDS: Record<string, string[]> = {
   'Thông số vận hành & Động cơ': [
-    'công suất', 'điện áp', 'tần số', 'dung tích', 'tốc độ', 'vòng/phút', 'lực hút',
+    'công suất', 'điện áp', 'tần số', 'tần suất', 'dung tích', 'tốc độ', 'vòng/phút', 'lực hút',
     'áp suất', 'nhiệt độ', 'độ ồn', 'pin', 'thời gian sạc', 'thời gian sử dụng',
-    'tiêu thụ điện', 'dung lượng', 'motor', 'động cơ', 'lưu lượng'
+    'tiêu thụ điện', 'dung lượng', 'motor', 'động cơ', 'lưu lượng', 'áp lực', 'bơm'
   ],
   'Kích thước & Thiết kế': [
     'kích thước', 'trọng lượng', 'khối lượng', 'chất liệu', 'màu sắc', 'chiều dài',
-    'chiều rộng', 'chiều cao', 'đường kính', 'vỏ', 'lòng nồi', 'thiết kế', 'kiểu dáng'
+    'chiều rộng', 'chiều cao', 'đường kính', 'vỏ', 'lòng nồi', 'thiết kế', 'kiểu dáng',
+    'model', 'sku', 'tay cầm', 'quai', 'vung', 'nắp', 'size', 'cỡ'
   ],
   'Công nghệ & Tính năng': [
     'công nghệ', 'điều khiển', 'màn hình', 'chế độ', 'chương trình', 'kết nối',
     'wifi', 'bluetooth', 'app', 'cảm biến', 'tính năng', 'tiện ích', 'hẹn giờ',
-    'bộ lọc', 'tự động', 'chức năng'
+    'bộ lọc', 'tự động', 'chức năng', 'sử dụng', 'bếp', 'kháng khuẩn', 'chống dính'
   ],
   'Tiêu chuẩn & Bảo hành': [
-    'bảo hành', 'xuất xứ', 'thương hiệu', 'phụ kiện', 'chứng nhận', 'tiêu chuẩn',
+    'bảo hành', 'xuất xứ', 'thương hiệu', 'hãng', 'phụ kiện', 'chứng nhận', 'tiêu chuẩn',
     'chống nước', 'an toàn'
   ],
 };
+
+const ALL_KNOWN_KEYS = Object.values(KNOWN_GROUP_KEYWORDS).flat();
 
 function categorizeKeyIntoGroup(key: string): string {
   const lower = key.toLowerCase();
@@ -142,7 +145,78 @@ function categorizeKeyIntoGroup(key: string): string {
 }
 
 /**
+ * Trích xuất các cặp Key: Value nằm liên tiếp trên cùng 1 dòng
+ * Ví dụ: "Model: LK-1068 Chất liệu: inox 304 Điện áp: 220 -240V Dung tích: 1,7L"
+ */
+function parseInlineSpecs(str: string): SpecItem[] {
+  const parts = str.split(':');
+  if (parts.length <= 1) return [];
+
+  const items: SpecItem[] = [];
+
+  function extractKeyAndValue(partText: string): { val: string; nextKey: string } {
+    const words = partText.trim().split(/\s+/);
+    if (words.length <= 1) {
+      return { val: '', nextKey: words[0] || '' };
+    }
+    // Ưu tiên khớp chính xác từ 1 đến 3 từ cuối cùng với từ khóa thông số đã biết
+    for (let len = 1; len <= Math.min(3, words.length - 1); len++) {
+      const candidate = words.slice(words.length - len).join(' ').toLowerCase();
+      if (ALL_KNOWN_KEYS.includes(candidate)) {
+        return {
+          val: words.slice(0, words.length - len).join(' '),
+          nextKey: words.slice(words.length - len).join(' '),
+        };
+      }
+    }
+    // Mặc định: lấy 2 từ cuối nếu câu dài, 1 từ nếu câu ngắn
+    const fallbackLen = words.length >= 3 ? 2 : 1;
+    return {
+      val: words.slice(0, words.length - fallbackLen).join(' '),
+      nextKey: words.slice(words.length - fallbackLen).join(' '),
+    };
+  }
+
+  // Khởi tạo key đầu tiên từ phần trước dấu : đầu tiên
+  const words0 = parts[0].trim().split(/\s+/);
+  let currentKey = words0[words0.length - 1];
+  for (let len = 1; len <= Math.min(3, words0.length); len++) {
+    const candidate = words0.slice(words0.length - len).join(' ').toLowerCase();
+    if (ALL_KNOWN_KEYS.includes(candidate)) {
+      currentKey = words0.slice(words0.length - len).join(' ');
+      break;
+    }
+  }
+
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (i === parts.length - 1) {
+      const val = part.trim();
+      if (val) {
+        items.push({
+          key: currentKey,
+          value: val,
+          isHighlight: /công suất|dung tích|lực hút|lực siết|pin|bảo hành|kích thước|khối lượng/i.test(currentKey),
+        });
+      }
+    } else {
+      const { val, nextKey } = extractKeyAndValue(part);
+      if (val.trim()) {
+        items.push({
+          key: currentKey,
+          value: val.trim(),
+          isHighlight: /công suất|dung tích|lực hút|lực siết|pin|bảo hành|kích thước|khối lượng/i.test(currentKey),
+        });
+      }
+      currentKey = nextKey.trim();
+    }
+  }
+  return items;
+}
+
+/**
  * Phân tích văn bản thô cục bộ (Regex & Heuristic) thành SpecGroup[]
+ * Hỗ trợ cả định dạng nhiều dòng và định dạng 1 dòng liên tục
  */
 export function parseSpecsLocally(rawText: string): SpecGroup[] {
   if (!rawText || !rawText.trim()) return [];
@@ -162,29 +236,42 @@ export function parseSpecsLocally(rawText: string): SpecGroup[] {
   for (let line of lines) {
     // Loại bỏ gạch đầu dòng Markdown hoặc ký tự bullet
     const cleanLine = line.replace(/^[\*\-\•\–\—\+]\s*/, '').trim();
+    const colonCount = (cleanLine.match(/:/g) || []).length;
 
-    // Kiểm tra dòng có phải phân tách key : value không
-    const colonIndex = cleanLine.indexOf(':');
-    const dashIndex = cleanLine.indexOf(' - ');
-    const tabIndex = cleanLine.indexOf('\t');
-
-    let delimiterIndex = -1;
-    let delimiterLength = 1;
-
-    if (colonIndex !== -1) {
-      delimiterIndex = colonIndex;
-      delimiterLength = 1;
-    } else if (dashIndex !== -1) {
-      delimiterIndex = dashIndex;
-      delimiterLength = 3;
-    } else if (tabIndex !== -1) {
-      delimiterIndex = tabIndex;
-      delimiterLength = 1;
+    // Trường hợp 1: Dòng chứa nhiều cặp Key: Value liên tiếp (vd: Model: LK-1068 Chất liệu: Inox...)
+    if (colonCount > 1) {
+      const inlineItems = parseInlineSpecs(cleanLine);
+      for (const it of inlineItems) {
+        if (currentGroup) {
+          currentGroup.items.push(it);
+        } else {
+          ungroupedItems.push(it);
+        }
+      }
+      continue;
     }
 
-    // Nếu không có dấu phân tách, có thể đây là Tên Nhóm (Group Header)
-    if (delimiterIndex === -1) {
-      const isHeader = isHeaderRegex.test(cleanLine) || cleanLine.toUpperCase() === cleanLine || cleanLine.endsWith(':');
+    // Trường hợp 2: Dòng chứa đúng 1 dấu hai chấm
+    if (colonCount === 1) {
+      const idx = cleanLine.indexOf(':');
+      const key = cleanLine.substring(0, idx).trim();
+      const value = cleanLine.substring(idx + 1).trim();
+
+      if (key && value) {
+        const isHighlight = /công suất|dung tích|lực hút|lực siết|pin|bảo hành|kích thước|khối lượng/i.test(key);
+        const item: SpecItem = { key, value, isHighlight };
+        if (currentGroup) {
+          currentGroup.items.push(item);
+        } else {
+          ungroupedItems.push(item);
+        }
+      }
+      continue;
+    }
+
+    // Trường hợp 3: Dòng không có dấu hai chấm -> Kiểm tra xem có phải tiêu đề nhóm không
+    if (colonCount === 0) {
+      const isHeader = isHeaderRegex.test(cleanLine) || cleanLine.toUpperCase() === cleanLine;
       if (isHeader && cleanLine.length < 60) {
         const groupName = cleanLine
           .replace(/^[I|V|X\d]+[\.\:\-]\s*/i, '')
@@ -193,24 +280,8 @@ export function parseSpecsLocally(rawText: string): SpecGroup[] {
         if (groupName) {
           currentGroup = { groupName, items: [] };
           groups.push(currentGroup);
-          continue;
         }
       }
-      continue;
-    }
-
-    const key = cleanLine.substring(0, delimiterIndex).trim();
-    const value = cleanLine.substring(delimiterIndex + delimiterLength).trim();
-
-    if (!key || !value) continue;
-
-    const isHighlight = /công suất|dung tích|lực hút|pin|bảo hành/i.test(key);
-    const item: SpecItem = { key, value, isHighlight };
-
-    if (currentGroup) {
-      currentGroup.items.push(item);
-    } else {
-      ungroupedItems.push(item);
     }
   }
 
@@ -245,8 +316,6 @@ export function parseSpecsLocally(rawText: string): SpecGroup[] {
 export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
   if (!rawText || !rawText.trim()) return [];
 
-  // Tách đoạn text thành các block sản phẩm
-  // Nhận diện theo "Sản phẩm X:", "Model:", "---", "###", v.v.
   const productBlocks: string[] = [];
   const lines = rawText.split(/\r?\n/);
   let currentBlock: string[] = [];
@@ -273,9 +342,7 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
     productBlocks.push(currentBlock.join('\n'));
   }
 
-  // Nếu không nhận diện được nhiều block, coi cả đoạn là 1 sản phẩm
   const targetBlocks = productBlocks.length > 1 ? productBlocks : [rawText];
-
   const results: Partial<Product>[] = [];
 
   for (let i = 0; i < targetBlocks.length; i++) {
@@ -298,7 +365,6 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
     for (const l of blockLines) {
       const clean = l.replace(/^[\*\-\•\–\—\+]\s*/, '').trim();
 
-      // Check product name / title
       if (/^sản phẩm\s*\d*\s*[\:\.]/i.test(clean)) {
         name = clean.replace(/^sản phẩm\s*\d*\s*[\:\.]\s*/i, '').trim();
         continue;
@@ -342,7 +408,6 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
       sku = `MD-${Math.floor(1000 + Math.random() * 9000)}`;
     }
 
-    // Auto align prices if not completely specified
     if (retailPrice > 0 && distributorPrice === 1350000 && costPrice === 1000000) {
       distributorPrice = Math.round(retailPrice * 0.7);
       floorPrice = Math.round(retailPrice * 0.85);
@@ -379,10 +444,96 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
 }
 
 // ==========================================
-// GEMINI AI INTEGRATION (HYBRID CALL)
+// GEMINI AI INTEGRATION (ROBUST MULTI-MODEL)
 // ==========================================
 
-export async function parseSpecsWithAI(rawText: string, customApiKey?: string): Promise<{ groups: SpecGroup[]; usedGemini: boolean }> {
+// Danh sách các model chính thức của Google Gemini API
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+
+/**
+ * Kiểm tra kết nối và tính hợp lệ của API Key
+ */
+export async function testGeminiApiKey(key: string): Promise<{ success: boolean; message: string }> {
+  const cleanKey = key.trim();
+  if (!cleanKey) {
+    return { success: false, message: 'Vui lòng nhập API Key' };
+  }
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Trả về chuỗi OK' }] }],
+          generationConfig: { maxOutputTokens: 10 },
+        }),
+      });
+
+      if (res.ok) {
+        return { success: true, message: `Kết nối thành công tới mô hình ${model}!` };
+      }
+    } catch (e: any) {
+      console.warn(`Lỗi kiểm tra ${model}:`, e?.message);
+    }
+  }
+
+  return {
+    success: false,
+    message: 'API Key không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại trên Google AI Studio.',
+  };
+}
+
+/**
+ * Gọi Google Gemini API với cơ chế tự động chuyển đổi sang model dự phòng nếu model chính bận/lỗi
+ */
+async function callGeminiGenerateContent(apiKey: string, prompt: string): Promise<string> {
+  let lastError: any = null;
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (responseText) {
+          return responseText;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+        console.warn(`Gemini API (${model}) trả về lỗi:`, errMsg);
+        lastError = new Error(`Gemini (${model}): ${errMsg}`);
+      }
+    } catch (e: any) {
+      console.warn(`Lỗi gọi Gemini API (${model}):`, e?.message);
+      lastError = e;
+    }
+  }
+
+  throw lastError || new Error('Không thể kết nối đến Google Gemini API');
+}
+
+/**
+ * Bóc tách thông số kỹ thuật sản phẩm đơn lẻ bằng Gemini AI
+ */
+export async function parseSpecsWithAI(
+  rawText: string,
+  customApiKey?: string
+): Promise<{ groups: SpecGroup[]; usedGemini: boolean; error?: string }> {
   const apiKey = (customApiKey || getSavedGeminiKey()).trim();
 
   if (!apiKey) {
@@ -394,7 +545,7 @@ export async function parseSpecsWithAI(rawText: string, customApiKey?: string): 
 
   const prompt = `Bạn là chuyên gia phân tích dữ liệu kỹ thuật sản phẩm và so sánh thông số B2B.
 Nhiệm vụ: Hãy phân tích đoạn văn bản kỹ thuật sau đây và trích xuất thành danh sách các nhóm thông số kỹ thuật (SpecGroup).
-Mỗi nhóm gồm 'groupName' (ví dụ: 'Thông số vận hành', 'Kích thước & Thiết kế', 'Công nghệ & Tiện ích', 'Nguồn điện & Tiêu thụ', 'Tiện ích & Bảo hành'...) và danh sách 'items' (mỗi item có 'key', 'value', và 'isHighlight': boolean nếu là thông số nổi bật quan trọng).
+Mỗi nhóm gồm 'groupName' (ví dụ: 'Thông số vận hành', 'Kích thước & Thiết kế', 'Công nghệ & Tiện ích', 'Nguồn điện & Tiêu thụ', 'Tiêu chuẩn & Bảo hành'...) và danh sách 'items' (mỗi item có 'key', 'value', và 'isHighlight': boolean nếu là thông số nổi bật quan trọng như công suất, dung tích, pin, lực hút...).
 
 Văn bản kỹ thuật đầu vào:
 """
@@ -402,7 +553,7 @@ ${rawText}
 """
 
 YÊU CẦU ĐẦU RA:
-Trả về DUY NHẤT một mảng JSON (không bọc trong markdown code block, hoặc trả về JSON hợp lệ) theo cấu trúc:
+Trả về DUY NHẤT một mảng JSON theo cấu trúc:
 [
   {
     "groupName": "Tên nhóm",
@@ -413,33 +564,7 @@ Trả về DUY NHẤT một mảng JSON (không bọc trong markdown code block,
 ]`;
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn('Gemini API trả về lỗi HTTP:', res.status, 'Chuyển sang bộ phân tích cục bộ.');
-      return {
-        groups: parseSpecsLocally(rawText),
-        usedGemini: false,
-      };
-    }
-
-    const data = await res.json();
-    const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!responseText) {
-      throw new Error('Gemini không trả về nội dung');
-    }
-
+    const responseText = await callGeminiGenerateContent(apiKey, prompt);
     const cleanJson = responseText.replace(/```json\s*|\s*```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     if (Array.isArray(parsed) && parsed.length > 0) {
@@ -448,16 +573,20 @@ Trả về DUY NHẤT một mảng JSON (không bọc trong markdown code block,
         usedGemini: true,
       };
     }
-    throw new Error('Dữ liệu trả về không đúng định dạng mảng');
-  } catch (err) {
-    console.warn('Gọi Gemini API thất bại, sử dụng bộ phân tích thông minh cục bộ:', err);
+    throw new Error('Dữ liệu trả về không đúng định dạng mảng SpecGroup[]');
+  } catch (err: any) {
+    console.warn('Gọi Gemini API thất bại, chuyển sang bộ phân tích Heuristic thông minh cục bộ:', err);
     return {
       groups: parseSpecsLocally(rawText),
       usedGemini: false,
+      error: err?.message,
     };
   }
 }
 
+/**
+ * Bóc tách nhiều sản phẩm cùng lúc bằng Gemini AI
+ */
 export async function parseMultiProductsWithAI(
   rawText: string,
   customApiKey?: string
@@ -512,30 +641,8 @@ Trả về DUY NHẤT một mảng JSON theo mẫu:
 Lưu ý: Nếu giá nào thiếu, hãy ước lượng tỷ lệ hợp lý dựa trên giá bán lẻ hoặc giá đã cho (costPrice ~ 50-60% retailPrice, distributorPrice ~ 70% retailPrice, floorPrice ~ 85% retailPrice).`;
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn('Gemini API trả về lỗi HTTP:', res.status, 'Chuyển sang bộ phân tích cục bộ.');
-      return {
-        products: parseMultiProductsLocally(rawText),
-        usedGemini: false,
-      };
-    }
-
-    const data = await res.json();
-    const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const cleanJson = responseText?.replace(/```json\s*|\s*```/g, '').trim();
+    const responseText = await callGeminiGenerateContent(apiKey, prompt);
+    const cleanJson = responseText.replace(/```json\s*|\s*```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     if (Array.isArray(parsed) && parsed.length > 0) {
       const finalProducts: Partial<Product>[] = parsed.map((p, idx) => ({
