@@ -661,6 +661,8 @@ export default function App() {
         onToggleCompare={handleToggleCompare}
         isComparing={Boolean(detailProduct && compareIds.includes(detailProduct.id))}
         showCostPrice={showCostPrice}
+        onEditProduct={prod => handleEditProductFromMatrix(prod, false)}
+        onDeleteProduct={handleDeleteProduct}
       />
 
       {/* Product Add / Edit Modal */}

@@ -14,6 +14,8 @@ import {
   PanelRightClose,
   PanelRight,
   PanelRightOpen,
+  Trash2,
+  Edit3,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -22,6 +24,8 @@ interface ProductDetailModalProps {
   onToggleCompare: (product: Product) => void;
   isComparing: boolean;
   showCostPrice: boolean;
+  onEditProduct?: (product: Product) => void;
+  onDeleteProduct?: (productId: string) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -30,6 +34,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onToggleCompare,
   isComparing,
   showCostPrice,
+  onEditProduct,
+  onDeleteProduct,
 }) => {
   // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
   const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
@@ -367,6 +373,38 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               Đóng
             </button>
             <div className="flex items-center gap-2">
+              {onDeleteProduct && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" (${product.sku}) không?`)) {
+                      onDeleteProduct(product.id);
+                      onClose();
+                    }
+                  }}
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium ring-offset-background transition-colors border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground h-8 px-3 text-xs cursor-pointer shadow-2xs"
+                  title="Xóa sản phẩm này"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1 shrink-0" />
+                  <span>Xóa</span>
+                </button>
+              )}
+
+              {onEditProduct && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onEditProduct(product);
+                  }}
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg font-semibold ring-offset-background transition-colors border border-border bg-secondary text-secondary-foreground hover:bg-secondary/80 h-8 px-3 text-xs cursor-pointer shadow-2xs"
+                  title="Chỉnh sửa thông tin sản phẩm này"
+                >
+                  <Edit3 className="w-3.5 h-3.5 mr-1 shrink-0" />
+                  <span>Sửa</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => onToggleCompare(product)}
