@@ -33,8 +33,6 @@ export const MultiProductAIModal: React.FC<MultiProductAIModalProps> = ({
   onClose,
   onImportProducts,
 }) => {
-  if (!isOpen) return null;
-
   const [rawText, setRawText] = useState('');
   const [apiKey, setApiKey] = useState(getSavedGeminiKey());
   const [showKeyConfig, setShowKeyConfig] = useState(false);
@@ -47,6 +45,8 @@ export const MultiProductAIModal: React.FC<MultiProductAIModalProps> = ({
   useEffect(() => {
     setApiKey(getSavedGeminiKey());
   }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleSaveKey = () => {
     saveGeminiKey(apiKey);

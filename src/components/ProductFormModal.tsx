@@ -84,6 +84,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [apiKey, setApiKey] = useState(getSavedGeminiKey());
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [aiResultMsg, setAiResultMsg] = useState<{ text: string; success: boolean } | null>(null);
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testKeyResult, setTestKeyResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (productToEdit) {
@@ -97,11 +99,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setTagsInput(productToEdit.tags?.join(', ') || '');
       setNotes(productToEdit.notes || '');
       setDescription(productToEdit.description || '');
-      setCostPrice(productToEdit.pricing.costPrice);
-      setDistributorPrice(productToEdit.pricing.distributorPrice);
-      setFloorPrice(productToEdit.pricing.floorPrice);
-      setRetailPrice(productToEdit.pricing.retailPrice);
-      setSpecGroups(JSON.parse(JSON.stringify(productToEdit.specifications || [])));
+      setCostPrice(productToEdit.pricing?.costPrice ?? '');
+      setDistributorPrice(productToEdit.pricing?.distributorPrice ?? '');
+      setFloorPrice(productToEdit.pricing?.floorPrice ?? '');
+      setRetailPrice(productToEdit.pricing?.retailPrice ?? '');
+      setSpecGroups(Array.isArray(productToEdit.specifications) ? JSON.parse(JSON.stringify(productToEdit.specifications)) : []);
       setIsAiOpen(false);
       setAiRawText('');
     } else {
@@ -142,9 +144,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     retailPrice: Number(retailPrice) || 0,
     currency: 'VND',
   });
-
-  const [isTestingKey, setIsTestingKey] = useState(false);
-  const [testKeyResult, setTestKeyResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSaveApiKey = () => {
     saveGeminiKey(apiKey);

@@ -36,7 +36,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   if (!product) return null;
 
-  const financials = calculateFinancials(product.pricing);
+  const financials = calculateFinancials(
+    product.pricing || { costPrice: 0, distributorPrice: 0, floorPrice: 0, retailPrice: 0, currency: 'VND' }
+  );
 
   const panelWidthStyle =
     panelWidth === 'narrow'
