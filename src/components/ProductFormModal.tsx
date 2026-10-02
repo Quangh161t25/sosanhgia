@@ -38,6 +38,7 @@ interface ProductFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (product: Product) => void;
+  initialOpenAiSpec?: boolean;
 }
 
 const SAMPLE_IMAGES = [
@@ -52,6 +53,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  initialOpenAiSpec = false,
 }) => {
   // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
   const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
@@ -104,8 +106,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setFloorPrice(productToEdit.pricing?.floorPrice ?? '');
       setRetailPrice(productToEdit.pricing?.retailPrice ?? '');
       setSpecGroups(Array.isArray(productToEdit.specifications) ? JSON.parse(JSON.stringify(productToEdit.specifications)) : []);
-      setIsAiOpen(false);
-      setAiRawText('');
+      if (initialOpenAiSpec) {
+        setIsAiOpen(true);
+        setAiRawText(productToEdit.description || '');
+      } else {
+        setIsAiOpen(false);
+        setAiRawText('');
+      }
     } else {
       setSku('');
       setName('');

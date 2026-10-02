@@ -297,6 +297,13 @@ export default function App() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [openFormWithAi, setOpenFormWithAi] = useState(false);
+
+  const handleEditProductFromMatrix = useCallback((product: Product, openAiSpec = false) => {
+    setEditingProduct(product);
+    setOpenFormWithAi(openAiSpec);
+    setIsFormOpen(true);
+  }, []);
 
   // Toggle thêm/bỏ so sánh
   const handleToggleCompare = useCallback((product: Product) => {
@@ -607,6 +614,7 @@ export default function App() {
                 const matching = products.filter(p => p.categoryType === categoryType).slice(0, 3);
                 setCompareIds(matching.map(m => m.id));
               }}
+              onEditProduct={handleEditProductFromMatrix}
             />
           )}
 
@@ -642,6 +650,7 @@ export default function App() {
           onAddProduct={handleAddFromMatrix}
           onReorderProducts={handleReorderProducts}
           showCostPrice={showCostPrice}
+          onEditProduct={handleEditProductFromMatrix}
         />
       )}
 
@@ -658,9 +667,11 @@ export default function App() {
       <ProductFormModal
         isOpen={isFormOpen}
         productToEdit={editingProduct}
+        initialOpenAiSpec={openFormWithAi}
         onClose={() => {
           setIsFormOpen(false);
           setEditingProduct(null);
+          setOpenFormWithAi(false);
         }}
         onSave={handleSaveProduct}
       />

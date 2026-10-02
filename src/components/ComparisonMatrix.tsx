@@ -31,6 +31,7 @@ import {
   Maximize2,
   CheckCircle2,
   HelpCircle,
+  Edit3,
 } from 'lucide-react';
 
 interface ComparisonMatrixProps {
@@ -43,6 +44,7 @@ interface ComparisonMatrixProps {
   showCostPrice: boolean;
   isEmbedded?: boolean;
   onSelectQuickCategory?: (categoryType: string) => void;
+  onEditProduct?: (product: Product, openAiSpec?: boolean) => void;
 }
 
 export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
@@ -55,6 +57,7 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
   showCostPrice,
   isEmbedded = false,
   onSelectQuickCategory,
+  onEditProduct,
 }) => {
   // 1. Chế độ xem & Bộ lọc
   const [viewMode, setViewMode] = useState<ViewMode>('all');
@@ -667,6 +670,29 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                           </div>
                         </div>
 
+                        {onEditProduct && (
+                          <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct(product, true)}
+                              className="flex-1 py-1 px-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              title="Bóc tách thông số kỹ thuật AI"
+                            >
+                              <Sparkles className="w-3 h-3 text-blue-600" />
+                              <span>Bóc tách AI</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct(product, false)}
+                              className="py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                              title="Mở form chỉnh sửa sản phẩm"
+                            >
+                              <Edit3 className="w-3 h-3 text-slate-600" />
+                              <span>Sửa</span>
+                            </button>
+                          </div>
+                        )}
+
                       </div>
                     </th>
                   );
@@ -952,11 +978,36 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                       </td>
                       {products.map(p => (
                         <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white align-top`}>
-                          <div className={`${fontSizeVal} text-slate-700 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-line p-2 rounded-lg bg-slate-50 border border-slate-200/80`}>
-                            {p.description ? (
-                              p.description
-                            ) : (
-                              <span className="text-slate-400 italic">Chưa có thông tin mô tả chi tiết.</span>
+                          <div className="space-y-2">
+                            <div className={`${fontSizeVal} text-slate-700 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-line p-2.5 rounded-lg bg-slate-50 border border-slate-200/80`}>
+                              {p.description ? (
+                                p.description
+                              ) : (
+                                <span className="text-slate-400 italic">Chưa có thông tin mô tả chi tiết.</span>
+                              )}
+                            </div>
+
+                            {onEditProduct && (
+                              <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => onEditProduct(p, true)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                                  title="Bóc tách thông số kỹ thuật AI từ mô tả này"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>Bóc tách thông số</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditProduct(p, false)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer shadow-2xs"
+                                  title="Chỉnh sửa thông tin sản phẩm"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>Chỉnh sửa SP</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         </td>
