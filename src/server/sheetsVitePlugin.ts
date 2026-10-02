@@ -5,7 +5,7 @@ import {
   pushProductsToSheet,
   pullProductsFromSheet,
   aiAnalyzeSheetSpecs,
-} from './googleSheetsService.ts';
+} from './googleSheetsService';
 
 function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {

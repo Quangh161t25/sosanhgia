@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
-import { Product, SpecGroup, SpecItem } from '../types/product.ts';
+import { Product, SpecGroup, SpecItem } from '../types/product';
 
 const SPREADSHEET_ID = '16I-JJUzrLWHh0nuKqoJwggAcrF_xIpBbT6EAcN5Geeg';
 const DEFAULT_SHEET_TITLE = 'Sản phẩm';

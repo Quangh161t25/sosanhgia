@@ -19,6 +19,7 @@ import {
   pushProductsToGoogleSheet,
   pullProductsFromGoogleSheet,
 } from './utils/googleSheetsApi';
+import { SHEET_PRODUCTS_SNAPSHOT } from './data/sheetProductsSnapshot';
 
 const STORAGE_KEY_PRODUCTS = 'procompare_products_v2';
 const STORAGE_KEY_ROLE = 'procompare_show_cost_v1';
@@ -111,14 +112,18 @@ export default function App() {
     } catch (e) {
       console.error('Lỗi đọc LocalStorage:', e);
     }
-    return [];
+    // Dữ liệu khởi tạo mặc định từ Google Sheet SO_SANH_GIA (73 sản phẩm thực tế)
+    return SHEET_PRODUCTS_SNAPSHOT;
   });
 
-  // Tự động tải toàn bộ danh mục sản phẩm từ Google Sheet khi mở trang web
+  // Tự động tải và đồng bộ toàn bộ danh mục sản phẩm từ Google Sheet khi mở trang web
   useEffect(() => {
     let isCancelled = false;
     async function loadInitialProducts() {
-      setIsLoadingSheets(true);
+      // Chỉ hiện loading overlay toàn màn hình nếu hoàn toàn chưa có sản phẩm nào
+      if (products.length === 0) {
+        setIsLoadingSheets(true);
+      }
       setSheetSyncError(null);
       try {
         const cfg = getLocalSheetsConfig();
@@ -133,7 +138,8 @@ export default function App() {
         }
       } catch (err: any) {
         console.error('Lỗi kết nối Google Sheet ban đầu:', err);
-        if (!isCancelled) {
+        // Chỉ hiện màn hình lỗi nếu chưa có dữ liệu sản phẩm nào hiển thị
+        if (!isCancelled && products.length === 0) {
           setSheetSyncError(err?.message || 'Không thể kết nối đến Google Sheet');
         }
       } finally {
