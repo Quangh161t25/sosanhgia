@@ -79,8 +79,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [specGroups, setSpecGroups] = useState<SpecGroup[]>([]);
 
   // AI Spec Extraction States
-  const [isAiOpen, setIsAiOpen] = useState(false);
-  const [aiRawText, setAiRawText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAppendMode, setIsAppendMode] = useState(false);
   const [apiKey, setApiKey] = useState(getSavedGeminiKey());
@@ -106,13 +104,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setFloorPrice(productToEdit.pricing?.floorPrice ?? '');
       setRetailPrice(productToEdit.pricing?.retailPrice ?? '');
       setSpecGroups(Array.isArray(productToEdit.specifications) ? JSON.parse(JSON.stringify(productToEdit.specifications)) : []);
-      if (initialOpenAiSpec) {
-        setIsAiOpen(true);
-        setAiRawText(productToEdit.description || '');
-      } else {
-        setIsAiOpen(false);
-        setAiRawText('');
-      }
     } else {
       setSku('');
       setName('');
@@ -129,8 +120,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setFloorPrice('');
       setRetailPrice('');
       setSpecGroups([]);
-      setIsAiOpen(false);
-      setAiRawText('');
     }
   }, [productToEdit, isOpen]);
 
@@ -138,8 +127,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     if (isOpen) {
       setApiKey(getSavedGeminiKey());
       setAiResultMsg(null);
+      if (initialOpenAiSpec && productToEdit?.description?.trim()) {
+        handleRunAiSpecParse(productToEdit.description.trim());
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialOpenAiSpec]);
 
   if (!isOpen) return null;
 
@@ -175,15 +167,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     }
   };
 
-  const handleRunAiSpecParse = async () => {
-    if (!aiRawText.trim()) return;
+  const handleRunAiSpecParse = async (customText?: string) => {
+    const textToParse = (typeof customText === 'string' ? customText : description).trim();
+    if (!textToParse) return;
     setIsAiLoading(true);
     setAiResultMsg(null);
     try {
-      const { groups, usedGemini, error } = await parseSpecsWithAI(aiRawText, apiKey);
+      const { groups, usedGemini, error } = await parseSpecsWithAI(textToParse, apiKey);
       if (groups.length === 0) {
         setAiResultMsg({
-          text: 'Không tìm thấy thông số nào từ văn bản. Vui lòng kiểm tra lại định dạng.',
+          text: 'Không tìm thấy thông số nào từ mô tả. Vui lòng kiểm tra lại nội dung.',
           success: false,
         });
         return;
@@ -615,36 +608,171 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     />
                   </div>
 
-                  {/* Mô tả sản phẩm (Dùng để AI bóc tách thông số) */}
-                  <div className="w-full sm:col-span-2">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium leading-none flex items-center gap-1.5 text-muted-foreground">
+                  {/* Mô tả sản phẩm & Nút bóc tách AI tích hợp trực tiếp */}
+                  <div className="w-full sm:col-span-2 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-xs font-semibold leading-none flex items-center gap-1.5 text-foreground">
                         <span className="text-muted-foreground shrink-0">
-                          <FileText className="w-3 h-3" />
+                          <FileText className="w-3.5 h-3.5" />
                         </span>
-                        Mô tả sản phẩm (Đồng bộ cột Google Sheet &amp; AI bóc tách)
+                        <span>Mô tả sản phẩm &amp; Thông số kỹ thuật thô</span>
                       </label>
-                      {description.trim() && (
+
+                      <div className="flex items-center gap-2">
+                        {/* API status badge */}
+                        {apiKey ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/30">
+                            ✨ Gemini AI
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] font-semibold border border-blue-500/30">
+                            ⚡ AI Heuristic
+                          </span>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => {
-                            setAiRawText(description);
-                            setIsAiOpen(true);
-                          }}
-                          className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
                         >
-                          <Sparkles className="w-3 h-3" />
-                          <span>Đưa vào AI bóc tách thông số</span>
+                          <Key className="w-3 h-3" />
+                          {apiKey ? 'Sửa Key' : 'Cấu hình Key'}
                         </button>
-                      )}
+
+                        {/* NÚT BẮT ĐẦU BÓC TÁCH AI ĐƯỢC ĐẶT TRỰC TIẾP Ở ĐÂY */}
+                        <button
+                          type="button"
+                          disabled={isAiLoading || !description.trim()}
+                          onClick={() => handleRunAiSpecParse()}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
+                            isAiLoading || !description.trim()
+                              ? 'bg-muted-foreground/30 text-muted-foreground cursor-not-allowed'
+                              : 'bg-primary hover:bg-primary/90 text-primary-foreground active:scale-95'
+                          }`}
+                        >
+                          {isAiLoading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang bóc tách...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Bắt đầu bóc tách AI</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
+
+                    {showApiKeyInput && (
+                      <div className="p-2.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground text-[11px]">
+                            Google Gemini API Key:
+                          </span>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                          >
+                            Lấy Key miễn phí <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={apiKey}
+                            onChange={e => {
+                              setApiKey(e.target.value);
+                              setTestKeyResult(null);
+                            }}
+                            placeholder="AIzaSy..."
+                            className="flex-1 px-2.5 py-1 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleTestApiKey}
+                            disabled={isTestingKey || !apiKey.trim()}
+                            className="px-2.5 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {isTestingKey ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            Kiểm tra
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveApiKey}
+                            className="px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Check className="w-3 h-3" />
+                            Lưu
+                          </button>
+                        </div>
+                        {testKeyResult && (
+                          <div
+                            className={`p-1.5 rounded text-[11px] flex items-center gap-1.5 ${
+                              testKeyResult.success
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                            }`}
+                          >
+                            {testKeyResult.success ? <Check className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                            <span>{testKeyResult.message}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <textarea
-                      rows={3}
+                      rows={4}
                       value={description}
                       onChange={e => setDescription(e.target.value)}
-                      placeholder="VD: Nồi chiên không dầu dung tích 6.5L, công suất 1800W mạnh mẽ. Dải nhiệt 40-230 độ C, lòng nồi Ceramic chống dính, cửa kính quan sát, bảo hành 24 tháng..."
-                      className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic leading-relaxed"
+                      placeholder="Dán nội dung mô tả, brochure hoặc thông số kỹ thuật vào đây... VD:
+Model: LK-1068
+Chất liệu: Inox 304
+Điện áp: 220-240V
+Dung tích: 1.7L
+Công suất: 1850-2200W..."
+                      className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 leading-relaxed font-mono"
                     />
+
+                    {/* Dưới textarea: tùy chọn gộp và thông báo kết quả */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <label className="flex items-center gap-2 text-muted-foreground cursor-pointer select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={isAppendMode}
+                          onChange={e => setIsAppendMode(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-primary border-border focus:ring-primary"
+                        />
+                        <span>Gộp thêm vào danh sách thông số bên dưới (không ghi đè)</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setDescription(SAMPLE_SPEC_TEXT_SINGLE)}
+                        className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        Dán mẫu thử
+                      </button>
+                    </div>
+
+                    {aiResultMsg && (
+                      <div
+                        className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                          aiResultMsg.success
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {aiResultMsg.success ? (
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        )}
+                        <span>{aiResultMsg.text}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ghi chú chính sách */}
@@ -759,211 +887,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               </div>
 
-              {/* CARD 3: TRỢ LÝ BÓC TÁCH THÔNG SỐ BẰNG AI (CHỈ CÓ Ở ADD/EDIT) */}
-              <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
-                  <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
-                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span className="truncate">Trợ lý AI bóc tách thông số kỹ thuật</span>
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsAiOpen(!isAiOpen)}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                        isAiOpen
-                          ? 'bg-primary text-primary-foreground shadow-xs'
-                          : 'bg-primary/10 text-primary hover:bg-primary/20'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>{isAiOpen ? 'Đóng AI' : 'Mở công cụ AI'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {isAiOpen ? (
-                  <div className="space-y-3 pt-1 animate-in fade-in duration-150">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Dán đoạn văn bản thông số kỹ thuật (từ brochure, website...), AI sẽ tự động bóc tách thành các nhóm chuẩn.
-                      </p>
-                      <div className="flex items-center gap-2 text-xs">
-                        {apiKey ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/30">
-                            ✨ Gemini Flash AI
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] font-semibold border border-blue-500/30">
-                            ⚡ AI Heuristic Cục Bộ
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                          className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                        >
-                          <Key className="w-3 h-3" />
-                          {apiKey ? 'Sửa Key' : 'Cấu hình Key'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {showApiKeyInput && (
-                      <div className="p-2.5 bg-muted/40 rounded-xl border border-border space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground text-[11px]">
-                            Google Gemini API Key:
-                          </span>
-                          <a
-                            href="https://aistudio.google.com/app/apikey"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                          >
-                            Lấy Key miễn phí <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            value={apiKey}
-                            onChange={e => {
-                              setApiKey(e.target.value);
-                              setTestKeyResult(null);
-                            }}
-                            placeholder="AIzaSy..."
-                            className="flex-1 px-2.5 py-1 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleTestApiKey}
-                            disabled={isTestingKey || !apiKey.trim()}
-                            className="px-2.5 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 rounded-lg font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            {isTestingKey ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                            Kiểm tra
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveApiKey}
-                            className="px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Check className="w-3 h-3" />
-                            Lưu
-                          </button>
-                        </div>
-                        {testKeyResult && (
-                          <div
-                            className={`p-1.5 rounded text-[11px] flex items-center gap-1.5 ${
-                              testKeyResult.success
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
-                            }`}
-                          >
-                            {testKeyResult.success ? <Check className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                            <span>{testKeyResult.message}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-medium text-foreground">Dán nội dung thông số kỹ thuật:</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setAiRawText(SAMPLE_SPEC_TEXT_SINGLE)}
-                            className="text-primary hover:underline font-medium cursor-pointer"
-                          >
-                            Dán mẫu thử
-                          </button>
-                          {aiRawText && (
-                            <button
-                              type="button"
-                              onClick={() => setAiRawText('')}
-                              className="text-muted-foreground hover:text-foreground cursor-pointer"
-                            >
-                              Xóa
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <textarea
-                        rows={4}
-                        value={aiRawText}
-                        onChange={e => setAiRawText(e.target.value)}
-                        placeholder="VD:
-Công suất: 1800W
-Dung tích: 6.5 Lít
-Điện áp: 220V - 50Hz
-Kích thước: 360 x 300 x 325 mm..."
-                        className="w-full p-2.5 text-xs font-mono rounded-lg border border-border bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 leading-relaxed"
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={isAppendMode}
-                          onChange={e => setIsAppendMode(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded text-primary border-border focus:ring-primary"
-                        />
-                        <span>Gộp thêm vào nhóm hiện có (không ghi đè)</span>
-                      </label>
-
-                      <button
-                        type="button"
-                        disabled={isAiLoading || !aiRawText.trim()}
-                        onClick={handleRunAiSpecParse}
-                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
-                          isAiLoading || !aiRawText.trim()
-                            ? 'bg-muted-foreground/40 cursor-not-allowed text-muted'
-                            : 'bg-primary hover:bg-primary/90'
-                        }`}
-                      >
-                        {isAiLoading ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Đang phân tích...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Bắt đầu bóc tách AI</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {aiResultMsg && (
-                      <div
-                        className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
-                          aiResultMsg.success
-                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
-                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-                        }`}
-                      >
-                        {aiResultMsg.success ? (
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                        )}
-                        <span>{aiResultMsg.text}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Bấm &quot;Mở công cụ AI&quot; để dán nhanh đoạn văn bản thông số kỹ thuật nhiều dòng và tự động chia nhóm.
-                  </p>
-                )}
-              </div>
-
-              {/* CARD 4: THÔNG SỐ KỸ THUẬT THEO NHÓM */}
+              {/* CARD 3: THÔNG SỐ KỸ THUẬT THEO NHÓM */}
               <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">
                   <h4 className="text-xs uppercase tracking-wider flex min-w-0 items-center gap-1.5 sm:gap-2 text-primary font-bold">
@@ -986,7 +910,7 @@ Kích thước: 360 x 300 x 325 mm..."
                   {specGroups.length === 0 ? (
                     <div className="text-center py-6 px-4 border border-dashed border-border rounded-xl bg-muted/20">
                       <p className="text-xs text-muted-foreground mb-3 font-medium">
-                        Chưa có nhóm thông số kỹ thuật nào.
+                        Chưa có nhóm thông số kỹ thuật nào. Bạn có thể dán nội dung vào ô <strong>Mô tả sản phẩm</strong> ở trên và bấm <strong>Bắt đầu bóc tách AI</strong>, hoặc tạo nhóm thủ công.
                       </p>
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
@@ -997,14 +921,17 @@ Kích thước: 360 x 300 x 325 mm..."
                           <Plus className="w-3.5 h-3.5" />
                           <span>Tạo nhóm thủ công</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsAiOpen(true)}
-                          className="text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Dùng AI bóc tách nhanh</span>
-                        </button>
+                        {description.trim() && (
+                          <button
+                            type="button"
+                            disabled={isAiLoading}
+                            onClick={() => handleRunAiSpecParse()}
+                            className="text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Bóc tách từ Mô tả ở trên</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
