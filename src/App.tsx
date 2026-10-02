@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Loader2, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { Product } from './types/product';
+import { UserEmployee } from './types/auth';
+import { DEFAULT_EMPLOYEES_SNAPSHOT } from './data/employeesSnapshot';
+import { LoginView } from './components/auth/LoginView';
 import { AppSidebar, NavigationTab } from './components/layout/AppSidebar';
 import { TopNavbar } from './components/layout/TopNavbar';
 import { HomeView } from './components/views/HomeView';
 import { ProductsView } from './components/views/ProductsView';
-import { FinanceView } from './components/views/FinanceView';
 import { SystemView } from './components/views/SystemView';
 import { CopyrightView } from './components/views/CopyrightView';
 import { ComparisonMatrix } from './components/ComparisonMatrix';
@@ -18,18 +20,20 @@ import {
   getLocalSheetsConfig,
   pushProductsToGoogleSheet,
   pullProductsFromGoogleSheet,
+  pullEmployeesFromGoogleSheet,
 } from './utils/googleSheetsApi';
 import { SHEET_PRODUCTS_SNAPSHOT } from './data/sheetProductsSnapshot';
 
 const STORAGE_KEY_PRODUCTS = 'procompare_products_v2';
 const STORAGE_KEY_ROLE = 'procompare_show_cost_v1';
+const STORAGE_KEY_AUTH = 'procompare_auth_user_v1';
+const STORAGE_KEY_LOGGED_OUT = 'procompare_logged_out';
 
 // Ánh xạ tab sang đường dẫn URL chuẩn SEO & tiếng Việt
 export const TAB_ROUTES: Record<NavigationTab, string> = {
   home: '/',
   products: '/san-pham',
   compare: '/so-sanh',
-  pricing: '/4-tang-gia',
   settings: '/cai-dat',
 };
 
@@ -57,9 +61,6 @@ export function getTabFromPathname(pathname: string): NavigationTab {
     ) {
       return 'compare';
     }
-    if (clean.includes('tang-gia') || clean.includes('pricing') || clean.includes('bang-gia')) {
-      return 'pricing';
-    }
     if (
       clean.includes('cai-dat') ||
       clean.includes('caidat') ||
@@ -76,6 +77,65 @@ export function getTabFromPathname(pathname: string): NavigationTab {
 }
 
 export default function App() {
+  // 0. Quản lý phiên Đăng nhập / Đăng xuất (Dữ liệu từ Google Sheet NHAN_VIEN)
+  const [currentUser, setCurrentUser] = useState<UserEmployee | null>(() => {
+    try {
+      const isLoggedOut = localStorage.getItem(STORAGE_KEY_LOGGED_OUT);
+      if (isLoggedOut === 'true') return null;
+
+      const saved = localStorage.getItem(STORAGE_KEY_AUTH);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Lỗi đọc tài khoản đăng nhập:', e);
+    }
+    // Mặc định khởi tạo tài khoản Lê Minh Công (Tổng Giám Đốc)
+    return DEFAULT_EMPLOYEES_SNAPSHOT[0];
+  });
+
+  const [employees, setEmployees] = useState<UserEmployee[]>(DEFAULT_EMPLOYEES_SNAPSHOT);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
+
+  const handleSyncEmployees = useCallback(async () => {
+    setIsLoadingEmployees(true);
+    try {
+      const list = await pullEmployeesFromGoogleSheet();
+      if (list && list.length > 0) {
+        setEmployees(list);
+        if (currentUser) {
+          const updated = list.find(
+            e => e.taiKhoan.toLowerCase() === currentUser.taiKhoan.toLowerCase()
+          );
+          if (updated) {
+            setCurrentUser(updated);
+            localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(updated));
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Lỗi tải danh sách nhân viên từ Google Sheet:', e);
+    } finally {
+      setIsLoadingEmployees(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    handleSyncEmployees();
+  }, [handleSyncEmployees]);
+
+  const handleLogout = useCallback(() => {
+    localStorage.setItem(STORAGE_KEY_LOGGED_OUT, 'true');
+    localStorage.removeItem(STORAGE_KEY_AUTH);
+    setCurrentUser(null);
+  }, []);
+
+  const handleLoginSuccess = useCallback((user: UserEmployee) => {
+    localStorage.removeItem(STORAGE_KEY_LOGGED_OUT);
+    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
+    setCurrentUser(user);
+  }, []);
+
   // 1. Navigation state với URL Pathname thực tế
   const [currentTab, setCurrentTab] = useState<NavigationTab>(() => {
     if (typeof window !== 'undefined') {
@@ -451,6 +511,18 @@ export default function App() {
     );
   }
 
+  // Màn hình đăng nhập nếu chưa có phiên làm việc
+  if (!currentUser) {
+    return (
+      <LoginView
+        employees={employees}
+        onLoginSuccess={handleLoginSuccess}
+        onRefreshEmployees={handleSyncEmployees}
+        isLoadingEmployees={isLoadingEmployees}
+      />
+    );
+  }
+
   // Subtitle breadcrumb (đi thẳng từ Trang chủ tới Sản phẩm, không còn mục 'Danh sách' thừa)
   const currentSubTitle = undefined;
 
@@ -482,6 +554,9 @@ export default function App() {
           totalProducts={products.length}
           showCostPrice={showCostPrice}
           onToggleCostPrice={handleToggleCostPrice}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onSyncEmployees={handleSyncEmployees}
         />
 
         {/* Scrollable View Area */}
@@ -491,6 +566,7 @@ export default function App() {
               onSelectTab={setCurrentTab}
               compareCount={compareIds.length}
               products={products}
+              currentUser={currentUser}
             />
           )}
 
@@ -531,16 +607,6 @@ export default function App() {
                 const matching = products.filter(p => p.categoryType === categoryType).slice(0, 3);
                 setCompareIds(matching.map(m => m.id));
               }}
-            />
-          )}
-
-          {currentTab === 'pricing' && (
-            <FinanceView
-              products={products}
-              onBackToHome={() => setCurrentTab('home')}
-              showCostPrice={showCostPrice}
-              onOpenCompare={() => setCurrentTab('compare')}
-              compareCount={compareIds.length}
             />
           )}
 

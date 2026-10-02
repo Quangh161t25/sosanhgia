@@ -3,12 +3,11 @@ import {
   Home,
   Package,
   Scale,
-  TrendingUp,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
-export type NavigationTab = 'home' | 'products' | 'compare' | 'pricing' | 'settings';
+export type NavigationTab = 'home' | 'products' | 'compare' | 'settings';
 
 interface AppSidebarProps {
   currentTab: NavigationTab;
@@ -47,11 +46,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           {compareCount}
         </span>
       ) : undefined,
-    },
-    {
-      id: 'pricing',
-      label: '4 Tầng giá',
-      icon: <TrendingUp className="w-4 h-4 shrink-0" />,
     },
   ];
 

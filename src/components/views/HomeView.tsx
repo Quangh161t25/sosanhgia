@@ -2,24 +2,26 @@ import React from 'react';
 import {
   Package,
   Scale,
-  TrendingUp,
   Settings,
   ArrowRight
 } from 'lucide-react';
 import { NavigationTab } from '../layout/AppSidebar';
 import { Product } from '../../types/product';
 import { calculateFinancials } from '../../utils/pricing';
+import { UserEmployee } from '../../types/auth';
 
 interface HomeViewProps {
   onSelectTab: (tab: NavigationTab) => void;
   compareCount: number;
   products: Product[];
+  currentUser?: UserEmployee | null;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onSelectTab,
   compareCount,
   products,
+  currentUser,
 }) => {
   const cards = [
     {
@@ -36,18 +38,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       iconBg: 'bg-indigo-600',
       icon: <Scale className="w-6 h-6 text-white" />,
       title: 'So sánh',
-      description: 'Đối chiếu chéo 4 tầng giá, tự động phát hiện điểm khác biệt thông số kỹ thuật.',
+      description: 'Đối chiếu chéo nhiều sản phẩm, tự động phát hiện điểm khác biệt thông số kỹ thuật.',
       badge: `${compareCount} đang chọn`,
       badgeColor: 'bg-indigo-50 text-indigo-700',
-    },
-    {
-      id: 'pricing' as NavigationTab,
-      iconBg: 'bg-emerald-600',
-      icon: <TrendingUp className="w-6 h-6 text-white" />,
-      title: '4 Tầng giá',
-      description: 'Quản lý giá nhập, giá NPP, giá sàn bảo hộ, giá bán lẻ và biên lợi nhuận.',
-      badge: 'B2B Tầng giá',
-      badgeColor: 'bg-emerald-50 text-emerald-700',
     },
     {
       id: 'settings' as NavigationTab,
@@ -67,20 +60,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="w-full p-6 sm:p-8 space-y-6">
       
-      {/* Greeting Header matching Image 2 */}
+      {/* Greeting Header */}
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <span>Chào buổi sáng,</span>
-          <span className="text-blue-600">Lê Minh Công</span>
+          <span>Chào mừng trở lại,</span>
+          <span className="text-blue-600">{currentUser?.hoTen || 'Lê Minh Công'}</span>
           <span>👋</span>
         </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          Hệ thống Quản lý Bảng Giá & Ma Trận Thông Số Kỹ Thuật Đa Tầng
+        <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+          <span>Hệ thống Quản lý Bảng Giá & Ma Trận Thông Số Kỹ Thuật Đa Tầng</span>
+          {currentUser?.quyen && (
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200">
+              {currentUser.quyen}
+            </span>
+          )}
         </p>
       </div>
 
-      {/* Main Module Cards Grid matching Image 2 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* Main Module Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {cards.map(c => (
           <button
             key={c.id}

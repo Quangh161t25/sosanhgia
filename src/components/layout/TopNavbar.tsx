@@ -13,8 +13,12 @@ import {
   Eye,
   EyeOff,
   Settings,
+  LogOut,
+  User,
+  Users,
 } from 'lucide-react';
 import { NavigationTab } from './AppSidebar';
+import { UserEmployee } from '../../types/auth';
 
 interface TopNavbarProps {
   currentTab: NavigationTab;
@@ -26,6 +30,9 @@ interface TopNavbarProps {
   totalProducts: number;
   showCostPrice?: boolean;
   onToggleCostPrice?: () => void;
+  currentUser?: UserEmployee | null;
+  onLogout?: () => void;
+  onSyncEmployees?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -38,6 +45,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   totalProducts,
   showCostPrice,
   onToggleCostPrice,
+  currentUser,
+  onLogout,
+  onSyncEmployees,
 }) => {
   const [timeString, setTimeString] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -65,7 +75,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     home: 'Trang chủ',
     products: 'Sản phẩm',
     compare: 'So sánh',
-    pricing: '4 Tầng giá',
     settings: 'Cài đặt',
   };
 
@@ -194,28 +203,82 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-100 transition-colors text-left"
+            className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors text-left"
           >
-            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              LC
-            </div>
+            {currentUser?.anh ? (
+              <img
+                src={currentUser.anh}
+                alt={currentUser.hoTen}
+                className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-200"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                {currentUser?.hoTen
+                  ? currentUser.hoTen
+                      .trim()
+                      .split(/\s+/)
+                      .slice(-2)
+                      .map(p => p[0])
+                      .join('')
+                      .toUpperCase()
+                  : 'LC'}
+              </div>
+            )}
             <div className="hidden md:block leading-tight">
-              <div className="text-xs font-bold text-slate-800">Lê Minh Công</div>
-              <div className="text-[10px] text-slate-400">Tổng Giám Đốc</div>
+              <div className="text-xs font-bold text-slate-800">
+                {currentUser?.hoTen || 'Lê Minh Công'}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {currentUser?.quyen || 'Tổng Giám Đốc'}
+              </div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-xs z-50 animate-in fade-in zoom-in-95 duration-100">
-              <div className="px-3 py-2 border-b border-slate-100">
-                <div className="font-bold text-slate-900">Lê Minh Công</div>
-                <div className="text-[11px] text-slate-500">Quản trị viên &bull; ProCompare</div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">● Hệ thống sẵn sàng</div>
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-xs z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/60">
+                <div className="font-bold text-slate-900 text-sm">
+                  {currentUser?.hoTen || 'Lê Minh Công'}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                  <span className="font-mono text-slate-600 font-medium">@{currentUser?.taiKhoan || 'admin'}</span>
+                  <span>&bull;</span>
+                  <span>ID: {currentUser?.id || 'NV01'}</span>
+                </div>
+                <div className="mt-1.5">
+                  <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md font-semibold text-[10px]">
+                    {currentUser?.quyen || 'Tổng Giám Đốc'}
+                  </span>
+                </div>
               </div>
 
               <div className="py-1">
+                {onSyncEmployees && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      onSyncEmployees();
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2"
+                  >
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Đồng bộ DS Nhân viên (Sheet NHAN_VIEN)</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onResetData();
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-emerald-700 flex items-center gap-2"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Đồng bộ lại từ Google Sheet</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -227,16 +290,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   <Key className="w-3.5 h-3.5 text-slate-500" />
                   <span>Cấu hình Gemini AI Key</span>
                 </button>
+              </div>
+
+              {/* Đăng xuất */}
+              <div className="pt-1 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    onResetData();
+                    onLogout?.();
                   }}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-amber-700 flex items-center gap-2"
+                  className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 font-semibold transition-colors"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Đồng bộ lại từ Google Sheet</span>
+                  <LogOut className="w-3.5 h-3.5 text-red-500" />
+                  <span>Đăng xuất</span>
                 </button>
               </div>
             </div>

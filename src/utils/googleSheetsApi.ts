@@ -1,4 +1,6 @@
 import { Product } from '../types/product';
+import { UserEmployee } from '../types/auth';
+import { DEFAULT_EMPLOYEES_SNAPSHOT } from '../data/employeesSnapshot';
 
 export interface SheetInfoResponse {
   success: boolean;
@@ -154,3 +156,21 @@ export async function aiAnalyzeSheetSpecsApi(
   return data;
 }
 
+/**
+ * Tải danh sách nhân viên từ Google Sheet (sheet NHAN_VIEN)
+ */
+export async function pullEmployeesFromGoogleSheet(): Promise<UserEmployee[]> {
+  try {
+    const res = await fetch('/api/sheets/employees');
+    if (!res.ok) {
+      return DEFAULT_EMPLOYEES_SNAPSHOT;
+    }
+    const data = await res.json();
+    if (data.success && Array.isArray(data.employees) && data.employees.length > 0) {
+      return data.employees;
+    }
+  } catch (err) {
+    console.warn('Không thể kết nối API /api/sheets/employees, dùng bản snapshot dự phòng:', err);
+  }
+  return DEFAULT_EMPLOYEES_SNAPSHOT;
+}

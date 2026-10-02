@@ -942,3 +942,77 @@ export async function aiAnalyzeSheetSpecs(
     products: updatedProducts,
   };
 }
+
+/**
+ * Tải danh sách nhân viên và quyền từ sheet NHAN_VIEN
+ */
+export async function pullEmployeesFromSheet(
+  sheetTitle: string = 'NHAN_VIEN'
+): Promise<{
+  id: string;
+  hoTen: string;
+  taiKhoan: string;
+  matKhau: string;
+  anh?: string;
+  quyen: string;
+}[]> {
+  const { sheets } = getSheetsClient();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetTitle}'!A1:Z200`,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length <= 1) {
+      return [];
+    }
+
+    const header = (rows[0] || []).map((h: any) => String(h || '').toLowerCase().trim());
+    const idIdx = header.findIndex((h: string) => h === 'id' || h.includes('mã'));
+    const hoTenIdx = header.findIndex((h: string) => h.includes('họ tên') || h.includes('hoten') || h.includes('tên'));
+    const taiKhoanIdx = header.findIndex((h: string) => h.includes('tài khoản') || h.includes('taikhoan') || h.includes('username') || h.includes('user'));
+    const matKhauIdx = header.findIndex((h: string) => h.includes('mật khẩu') || h.includes('matkhau') || h.includes('password') || h.includes('pass'));
+    const anhIdx = header.findIndex((h: string) => h.includes('ảnh') || h.includes('anh') || h.includes('avatar') || h.includes('hình'));
+    const quyenIdx = header.findIndex((h: string) => h.includes('quyen') || h.includes('quyền') || h.includes('vai trò') || h.includes('chức vụ') || h.includes('role'));
+
+    const employees: {
+      id: string;
+      hoTen: string;
+      taiKhoan: string;
+      matKhau: string;
+      anh?: string;
+      quyen: string;
+    }[] = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      const taiKhoan = String(taiKhoanIdx !== -1 ? row[taiKhoanIdx] ?? '' : row[2] ?? '').trim();
+      const hoTen = String(hoTenIdx !== -1 ? row[hoTenIdx] ?? '' : row[1] ?? '').trim();
+      if (!taiKhoan && !hoTen) continue;
+
+      const id = String(idIdx !== -1 ? row[idIdx] ?? '' : row[0] ?? `NV${String(i).padStart(2, '0')}`).trim();
+      const matKhau = String(matKhauIdx !== -1 ? row[matKhauIdx] ?? '' : row[3] ?? '123456').trim();
+      const anh = String(anhIdx !== -1 ? row[anhIdx] ?? '' : row[4] ?? '').trim();
+      const quyen = String(quyenIdx !== -1 ? row[quyenIdx] ?? '' : row[5] ?? 'Nhân viên').trim();
+
+      employees.push({
+        id: id || `NV${String(i).padStart(2, '0')}`,
+        hoTen: hoTen || taiKhoan,
+        taiKhoan,
+        matKhau,
+        anh,
+        quyen: quyen || 'Nhân viên',
+      });
+    }
+
+    return employees;
+  } catch (error: any) {
+    console.error('Lỗi khi đọc sheet NHAN_VIEN:', error);
+    throw error;
+  }
+}
+

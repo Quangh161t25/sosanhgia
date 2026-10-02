@@ -5,6 +5,7 @@ import {
   pushProductsToSheet,
   pullProductsFromSheet,
   aiAnalyzeSheetSpecs,
+  pullEmployeesFromSheet,
 } from './googleSheetsService';
 
 function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
@@ -62,6 +63,12 @@ export function googleSheetsVitePlugin(): Plugin {
             const sheetTitle = parsedUrl.searchParams.get('sheetTitle') || 'Sản phẩm';
             const products = await pullProductsFromSheet(sheetTitle);
             return sendJson(res, { success: true, count: products.length, products });
+          }
+
+          // 2b. GET /api/sheets/employees
+          if (req.method === 'GET' && url.startsWith('/api/sheets/employees')) {
+            const employees = await pullEmployeesFromSheet('NHAN_VIEN');
+            return sendJson(res, { success: true, count: employees.length, employees });
           }
 
           // 3. POST /api/sheets/push
