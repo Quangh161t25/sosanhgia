@@ -79,7 +79,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   };
 
   return (
-    <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between sticky top-0 z-20 select-none">
+    <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between sticky top-0 z-50 select-none">
       
       {/* Left: Breadcrumbs matching Image 2 & 3 */}
       <div className="flex items-center gap-2 text-xs">
@@ -237,7 +237,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-xs z-50 animate-in fade-in zoom-in-95 duration-100">
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => setShowProfileMenu(false)}
+              />
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs z-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/60">
                 <div className="font-bold text-slate-900 text-sm">
                   {currentUser?.hoTen || 'Lê Minh Công'}
@@ -307,7 +312,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 </button>
               </div>
             </div>
-          )}
+          </>
+        )}
         </div>
 
       </div>

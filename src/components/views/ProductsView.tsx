@@ -367,7 +367,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     <div className="w-full px-4 sm:px-6 py-4 space-y-4">
       
       {/* KHUNG TRÊN: TAP NHỎ + LỌC (Hợp nhất theo layout chuẩn, bỏ overflow-hidden để popover không bị lấp) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs relative z-30">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs relative z-10">
         
         {/* Hàng 1: Tabs nhỏ + Bộ điều khiển so sánh (Đủ 5 sản phẩm mới so sánh) */}
         <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
