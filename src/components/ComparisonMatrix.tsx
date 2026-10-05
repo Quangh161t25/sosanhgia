@@ -72,6 +72,7 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [zoomProduct, setZoomProduct] = useState<Product | null>(null);
   const [isStickyHeader, setIsStickyHeader] = useState(true);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
   // 3. Thu gọn từng khối chính
@@ -380,8 +381,8 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
               onClick={() => setIsStickyHeader(prev => !prev)}
               title={
                 isStickyHeader
-                  ? 'Đang ghim đầu cột (Tự thu gọn khi cuộn). Nhấn để thả trôi tự do.'
-                  : 'Đang thả trôi đầu cột. Nhấn để ghim cố định khi cuộn.'
+                  ? 'Đang CỐ ĐỊNH đầu cột khi cuộn. Bấm để THẢ TRÔI (cuộn theo trang).'
+                  : 'Đang THẢ TRÔI đầu cột. Bấm để CỐ ĐỊNH đầu cột khi cuộn.'
               }
               className={`p-1.5 rounded-xl border text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
                 isStickyHeader
@@ -395,7 +396,32 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                 <PinOff className="w-3.5 h-3.5 text-slate-500" />
               )}
               <span className="hidden sm:inline">
-                {isStickyHeader ? 'Ghim đầu cột' : 'Bỏ ghim'}
+                {isStickyHeader ? 'Đang cố định' : 'Thả trôi'}
+              </span>
+            </button>
+
+            {/* Nút Thu gọn / Mở rộng đầu bảng */}
+            <button
+              type="button"
+              onClick={() => setIsHeaderCollapsed(prev => !prev)}
+              title={
+                isHeaderCollapsed
+                  ? 'Đang ở chế độ Siêu gọn (~42px). Bấm để mở rộng xem ảnh.'
+                  : 'Đang mở rộng. Bấm để thu gọn đầu bảng (tiết kiệm 85% diện tích).'
+              }
+              className={`p-1.5 rounded-xl border text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                isHeaderCollapsed
+                  ? 'border-amber-500 bg-amber-50 text-amber-700 font-semibold shadow-2xs'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {isHeaderCollapsed ? (
+                <ChevronDown className="w-3.5 h-3.5 text-amber-600" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+              )}
+              <span className="hidden sm:inline">
+                {isHeaderCollapsed ? 'Đang thu gọn' : 'Thu gọn'}
               </span>
             </button>
 
@@ -545,26 +571,38 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                 isStickyHeader ? 'sticky top-0 z-20 shadow-xs' : 'relative z-10'
               } bg-white transition-all duration-150`}
             >
-              {isStickyHeader && isScrolled ? (
-                /* === CHẾ ĐỘ THU GỌN MINI KHI CUỘN XUỐNG (TIẾT KIỆM 85% DIỆN TÍCH) === */
+              {isHeaderCollapsed || (isStickyHeader && isScrolled) ? (
+                /* === CHẾ ĐỘ THU GỌN MINI KHI CUỘN XUỐNG HOẶC KHI BẬT THU GỌN (TIẾT KIỆM 85% DIỆN TÍCH) === */
                 <tr className="border-b border-slate-200 bg-white/95 backdrop-blur-xs">
                   {/* Cột 0: Chỉ mục */}
                   <th className="sticky left-0 z-20 bg-white/95 backdrop-blur-xs px-3 py-2 border-r border-slate-200 align-middle">
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <Scale className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <span className="text-xs font-bold text-slate-800 truncate">
                           Chỉ mục ({products.length})
                         </span>
                       </div>
-                      {benchmarkProduct && (
-                        <span
-                          className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded truncate max-w-[85px]"
-                          title={`Mốc chuẩn: ${benchmarkProduct.sku}`}
-                        >
-                          Mốc: {benchmarkProduct.sku}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {benchmarkProduct && (
+                          <span
+                            className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded truncate max-w-[75px]"
+                            title={`Mốc chuẩn: ${benchmarkProduct.sku}`}
+                          >
+                            Mốc: {benchmarkProduct.sku}
+                          </span>
+                        )}
+                        {isHeaderCollapsed && (
+                          <button
+                            type="button"
+                            onClick={() => setIsHeaderCollapsed(false)}
+                            className="p-0.5 text-slate-400 hover:text-blue-600 cursor-pointer"
+                            title="Mở rộng đầu bảng"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </th>
 
@@ -625,7 +663,7 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             </div>
                           </div>
 
-                          {/* Khối bên phải: Nút làm mốc & Nút xóa cột */}
+                          {/* Khối bên phải: Nút làm mốc & Nút sửa & Nút xóa cột */}
                           <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
@@ -639,6 +677,16 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             >
                               <Target className="w-3.5 h-3.5" />
                             </button>
+                            {onEditProduct && (
+                              <button
+                                type="button"
+                                onClick={() => onEditProduct(product, false)}
+                                className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+                                title="Chỉnh sửa sản phẩm"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {products.length > 2 && (
                               <button
                                 type="button"
@@ -656,69 +704,79 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                   })}
                 </tr>
               ) : (
-                /* === CHẾ ĐỘ ĐẦY ĐỦ (KHI Ở ĐẦU TRANG HOẶC KHI TẮT GHIM) === */
+                /* === CHẾ ĐỘ MỞ RỘNG (ĐÃ TINH GỌN, KHÔNG CÒN RÁC THỪA CHIẾM DIỆN TÍCH) === */
                 <tr className="border-b border-slate-200">
-                  {/* Cột 0: Tiêu đề góc trái */}
-                  <th className="sticky left-0 z-20 bg-white p-3.5 border-r border-slate-200 align-top">
+                  {/* Cột 0: Tiêu đề góc trái (Gọn gàng) */}
+                  <th className="sticky left-0 z-20 bg-white p-3 border-r border-slate-200 align-top">
                     <div className="flex flex-col justify-between h-full space-y-2">
                       <div>
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 block">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 block">
                           CHỈ MỤC SO SÁNH
                         </span>
-                        <p className="text-xs font-semibold text-slate-700 mt-1 leading-snug">
-                          Đối chiếu chi tiết 4 tầng giá & từng thông số
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          {products.length} sản phẩm đối chiếu
                         </p>
                       </div>
 
                       {benchmarkProduct ? (
-                        <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 leading-tight">
+                        <div className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 leading-tight">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold flex items-center gap-1">
+                            <span className="font-bold flex items-center gap-1 text-[11px]">
                               <Target className="w-3 h-3 text-blue-600" /> Mốc: {benchmarkProduct.sku}
                             </span>
                             <button
                               type="button"
                               onClick={() => setBenchmarkId('')}
-                              className="text-blue-600 hover:text-red-600 font-bold"
+                              className="text-blue-600 hover:text-red-600 font-bold ml-1 cursor-pointer"
                               title="Xóa mốc đối chiếu"
                             >
                               ×
                             </button>
                           </div>
                           <span className="text-[10px] text-blue-700 mt-0.5 block">
-                            Các cột bên cạnh hiển thị mức chênh lệch (+ / -)
+                            Các cột hiển thị mức chênh (+/-)
                           </span>
                         </div>
                       ) : (
                         <div className="text-[11px] text-slate-400 italic">
-                          Chọn nút "Làm mốc" ở sản phẩm để tính chênh lệch giá & cấu hình.
+                          Bấm "Làm mốc" để tính chênh lệch.
                         </div>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => setIsHeaderCollapsed(true)}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer pt-1"
+                        title="Thu nhỏ đầu bảng để mở rộng diện tích xem thông số"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                        <span>Thu gọn đầu bảng</span>
+                      </button>
                     </div>
                   </th>
 
-                  {/* Các cột sản phẩm đầy đủ */}
+                  {/* Các cột sản phẩm gọn gàng */}
                   {products.map((product, idx) => {
                     const isBenchmark = product.id === benchmarkId;
 
                     return (
                       <th
                         key={product.id}
-                        className={`p-3 border-r border-slate-200 align-top transition-colors ${
+                        className={`p-2.5 border-r border-slate-200 align-top transition-colors ${
                           isBenchmark
                             ? 'bg-blue-50/40 ring-2 ring-blue-500/20'
                             : 'bg-white'
                         }`}
                       >
-                        <div className="flex flex-col gap-2">
-                          {/* Hàng nút tác vụ: Chuyển vị trí cột, Làm mốc, Xóa */}
+                        <div className="flex flex-col gap-1.5">
+                          {/* Hàng nút tác vụ đa năng gom gọn vào 1 hàng */}
                           <div className="flex items-center justify-between text-slate-400 text-xs">
                             <div className="flex items-center gap-0.5">
                               <button
                                 type="button"
                                 disabled={idx === 0}
                                 onClick={() => handleMoveColumn(idx, 'left')}
-                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
+                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                                 title="Chuyển cột sang trái"
                               >
                                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -727,7 +785,7 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                                 type="button"
                                 disabled={idx === products.length - 1}
                                 onClick={() => handleMoveColumn(idx, 'right')}
-                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
+                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                                 title="Chuyển cột sang phải"
                               >
                                 <ArrowRight className="w-3.5 h-3.5" />
@@ -749,6 +807,17 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                                 {isBenchmark ? 'Đang làm mốc' : 'Làm mốc'}
                               </button>
 
+                              {onEditProduct && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditProduct(product, false)}
+                                  className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+                                  title="Chỉnh sửa sản phẩm"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
                               {products.length > 2 && (
                                 <button
                                   type="button"
@@ -762,9 +831,9 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             </div>
                           </div>
 
-                          {/* Ảnh sản phẩm: GỌN GÀNG (h-20 sm:h-24, max-w-[180px]) */}
+                          {/* Ảnh sản phẩm: GỌN GÀNG (h-16 sm:h-20, max-w-[150px]) */}
                           {showImages && (
-                            <div className="relative h-20 sm:h-24 w-full max-w-[180px] mx-auto rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden p-1.5 group shadow-2xs">
+                            <div className="relative h-16 sm:h-20 w-full max-w-[150px] mx-auto rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden p-1 group shadow-2xs">
                               <img
                                 src={product.thumbnail}
                                 alt={product.name}
@@ -785,11 +854,11 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                                 title="Nhấn để xem ảnh lớn chi tiết"
                               >
                                 <ZoomIn className="w-4 h-4" />
-                                <span>Xem ảnh lớn</span>
+                                <span>Xem to</span>
                               </button>
 
-                              <div className="absolute top-1.5 left-1.5 pointer-events-none">
-                                <span className="font-mono font-bold text-[10px] bg-slate-900/85 text-white px-1.5 py-0.5 rounded shadow-2xs">
+                              <div className="absolute top-1 left-1 pointer-events-none">
+                                <span className="font-mono font-bold text-[9px] bg-slate-900/85 text-white px-1.5 py-0.2 rounded shadow-2xs">
                                   {product.sku}
                                 </span>
                               </div>
@@ -797,8 +866,8 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                           )}
 
                           {/* Tiêu đề & Thương hiệu */}
-                          <div className="space-y-0.5">
-                            <div className="flex items-center justify-between">
+                          <div className="space-y-0.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
                               <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
                                 {product.brand || product.categoryType}
                               </span>
@@ -809,7 +878,7 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                               )}
                             </div>
                             <h4
-                              className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug hover:text-blue-600 transition-colors cursor-pointer"
+                              className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-1 leading-snug hover:text-blue-600 transition-colors cursor-pointer"
                               title={product.name}
                               onClick={() => setZoomProduct(product)}
                             >
@@ -817,43 +886,17 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             </h4>
                           </div>
 
-                          {/* Thẻ tóm tắt giá nhanh ở đầu cột */}
-                          <div className="pt-1.5 border-t border-slate-100 flex items-baseline justify-between">
-                            <div>
-                              <span className="text-[10px] text-slate-500 font-medium block">Giá NPP:</span>
-                              <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-700">
-                                {formatVND(product.pricing.distributorPrice)}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-400 font-medium block">Giá bán lẻ:</span>
-                              <span className="text-xs font-bold font-mono text-slate-700">
-                                {formatVND(product.pricing.retailPrice)}
-                              </span>
-                            </div>
-                          </div>
-
+                          {/* Nút Bóc tách AI thu nhỏ */}
                           {onEditProduct && (
-                            <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100">
-                              <button
-                                type="button"
-                                onClick={() => onEditProduct(product, true)}
-                                className="flex-1 py-1 px-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                                title="Bóc tách thông số kỹ thuật AI"
-                              >
-                                <Sparkles className="w-3 h-3 text-blue-600" />
-                                <span>Bóc tách AI</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEditProduct(product, false)}
-                                className="py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                                title="Mở form chỉnh sửa sản phẩm"
-                              >
-                                <Edit3 className="w-3 h-3 text-slate-600" />
-                                <span>Sửa</span>
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct(product, true)}
+                              className="w-full py-0.5 px-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs mt-0.5"
+                              title="Bóc tách thông số kỹ thuật AI"
+                            >
+                              <Sparkles className="w-3 h-3 text-blue-600" />
+                              <span>Bóc tách AI</span>
+                            </button>
                           )}
                         </div>
                       </th>
