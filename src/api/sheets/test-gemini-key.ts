@@ -14,8 +14,8 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp apiKey' });
     }
 
-    // Tự động nhận diện chuỗi AIzaSy nếu bị bao bọc
-    const match = apiKey.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+    // Tự động nhận diện chuỗi AIzaSy hoặc AQ nếu bị bao bọc
+    const match = apiKey.match(/(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{30,70})/);
     if (match) {
       apiKey = match[0];
     } else {

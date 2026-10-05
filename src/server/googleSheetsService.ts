@@ -746,10 +746,17 @@ function parseSpecsTextToGroups(text: string): SpecGroup[] {
 export async function parseSpecsFromRawText(rawText: string, customApiKey?: string): Promise<SpecGroup[]> {
   if (!rawText || !rawText.trim()) return [];
 
-  // 1. Thử gọi Gemini AI nếu có key
   const apiKey = (customApiKey || process.env.GEMINI_API_KEY || '').trim();
   if (apiKey) {
-    const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    const models = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-1.5-pro',
+    ];
     for (const model of models) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;

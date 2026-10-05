@@ -12,7 +12,7 @@ async function handler(req, res) {
     if (!apiKey) {
       return res.status(400).json({ success: false, message: "Vui l\xF2ng cung c\u1EA5p apiKey" });
     }
-    const match = apiKey.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+    const match = apiKey.match(/(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{30,70})/);
     if (match) {
       apiKey = match[0];
     } else {

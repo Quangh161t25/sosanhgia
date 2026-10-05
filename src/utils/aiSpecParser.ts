@@ -482,7 +482,15 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
 // ==========================================
 
 // Danh sách các model chính thức của Google Gemini API
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-1.5-pro',
+];
 
 /**
  * Làm sạch và chuẩn hóa mã Gemini API Key (bỏ ngoặc kép, nháy đơn, tiền tố gán biến)
@@ -491,8 +499,8 @@ export function cleanApiKey(raw: string): string {
   if (!raw) return '';
   let cleaned = raw.trim();
 
-  // Tự động nhận diện chuỗi Google AI Studio key (bắt đầu bằng AIzaSy và có 39 ký tự)
-  const keyMatch = cleaned.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+  // Tự động nhận diện chuỗi Google AI Studio key (bắt đầu bằng AIzaSy hoặc AQ.)
+  const keyMatch = cleaned.match(/(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{30,70})/);
   if (keyMatch) {
     return keyMatch[0];
   }
@@ -527,7 +535,7 @@ export async function testGeminiApiKey(key: string): Promise<{ success: boolean;
   if (raw.includes('gserviceaccount.com') || (raw.includes('{') && raw.includes('private_key'))) {
     return {
       success: false,
-      message: '⚠️ Đây là thông tin Service Account của Google Sheets! Khóa Google Sheets đã được hệ thống cấu hình tự động kết nối với file SO_SANH_GIA rồi (không cần điền vào đây). Ô này chỉ dành cho Gemini AI API Key (khóa từ Google AI Studio, bắt đầu bằng AIzaSy...) để dùng tính năng AI bóc tách thông số kỹ thuật.',
+      message: '⚠️ Đây là thông tin Service Account của Google Sheets! Khóa Google Sheets đã được hệ thống cấu hình tự động kết nối với file SO_SANH_GIA rồi (không cần điền vào đây). Ô này chỉ dành cho Gemini AI API Key (khóa từ Google AI Studio, bắt đầu bằng AIzaSy... hoặc AQ...) để dùng tính năng AI bóc tách thông số kỹ thuật.',
     };
   }
 
@@ -540,7 +548,7 @@ export async function testGeminiApiKey(key: string): Promise<{ success: boolean;
   if (cleanKey.length < 20) {
     return {
       success: false,
-      message: 'Mã API Key không đúng định dạng. Khóa Google Gemini AI thường bắt đầu bằng "AIzaSy..." gồm 39 ký tự.',
+      message: 'Mã API Key không đúng định dạng. Khóa Google Gemini AI thường bắt đầu bằng "AIzaSy..." hoặc "AQ..." lấy từ Google AI Studio.',
     };
   }
 

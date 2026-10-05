@@ -125,7 +125,7 @@ export function googleSheetsVitePlugin(): Plugin {
           if (req.method === 'POST' && pathname === '/api/sheets/test-gemini-key') {
             const body = await parseJsonBody(req);
             let apiKey = (body?.apiKey || '').trim();
-            const match = apiKey.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+            const match = apiKey.match(/(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{30,70})/);
             if (match) apiKey = match[0];
             const testUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
             try {
