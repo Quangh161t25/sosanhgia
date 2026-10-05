@@ -319,7 +319,6 @@ export default function App() {
   }, []);
 
   // 5. Modals State
-  const [isMatrixOpen, setIsMatrixOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -704,27 +703,13 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Bottom Dock for Selected Comparison Products (chỉ hiện khi chưa ở trang so sánh) */}
-      {currentTab !== 'compare' && !isMatrixOpen && (
+      {/* Floating Bottom Dock for Selected Comparison Products (chỉ hiện khi chưa ở module so sánh) */}
+      {currentTab !== 'compare' && (
         <FloatingCompareDock
           selectedProducts={selectedProductsToCompare}
           onRemoveProduct={handleRemoveCompare}
           onClearAll={handleClearAllCompare}
-          onOpenCompareMatrix={() => setIsMatrixOpen(true)}
-        />
-      )}
-
-      {/* Fullscreen / Modal Comparison Matrix Workspace */}
-      {isMatrixOpen && (
-        <ComparisonMatrix
-          products={selectedProductsToCompare}
-          allCatalogProducts={products}
-          onClose={() => setIsMatrixOpen(false)}
-          onRemoveProduct={handleRemoveCompare}
-          onAddProduct={handleAddFromMatrix}
-          onReorderProducts={handleReorderProducts}
-          showCostPrice={showCostPrice}
-          onEditProduct={handleEditProductFromMatrix}
+          onOpenCompareMatrix={() => setCurrentTab('compare')}
         />
       )}
 

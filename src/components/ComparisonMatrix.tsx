@@ -467,14 +467,15 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
               <FileSpreadsheet className="w-3.5 h-3.5" />
             </button>
 
-            {/* Đóng Modal */}
+            {/* Quay lại danh mục sản phẩm */}
             <button
               type="button"
               onClick={onClose}
-              title="Đóng bảng so sánh"
-              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors ml-0.5"
+              title="Quay lại danh mục sản phẩm"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-colors ml-0.5 cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Quay lại</span>
             </button>
           </div>
         </div>
