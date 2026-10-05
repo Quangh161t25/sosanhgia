@@ -181,13 +181,21 @@ export default function App() {
         const hasTruncatedPrices = parsed.some(
           p => p.pricing && p.pricing.costPrice > 0 && p.pricing.costPrice < 10000
         );
-        if (!hasMock && !hasTruncatedPrices && parsed.length > 0) return parsed;
+        if (!hasMock && !hasTruncatedPrices && parsed.length > 0) {
+          return parsed.map(p => {
+            const cleanSku = (p.sku || p.id || '').trim().toUpperCase();
+            return { ...p, id: cleanSku || p.id, sku: cleanSku || p.sku };
+          });
+        }
       }
     } catch (e) {
       console.error('Lỗi đọc LocalStorage:', e);
     }
     // Dữ liệu khởi tạo mặc định từ Google Sheet SO_SANH_GIA (73 sản phẩm thực tế)
-    return SHEET_PRODUCTS_SNAPSHOT;
+    return SHEET_PRODUCTS_SNAPSHOT.map(p => {
+      const cleanSku = (p.sku || p.id || '').trim().toUpperCase();
+      return { ...p, id: cleanSku || p.id, sku: cleanSku || p.sku };
+    });
   });
 
   // Tự động tải và đồng bộ toàn bộ danh mục sản phẩm từ Google Sheet khi mở trang web
@@ -203,9 +211,13 @@ export default function App() {
         const cfg = getLocalSheetsConfig();
         const sheetProducts = await pullProductsFromGoogleSheet(cfg.sheetTitle || 'Sản phẩm');
         if (!isCancelled && sheetProducts && sheetProducts.length > 0) {
-          setProducts(sheetProducts);
+          const normalized = sheetProducts.map(p => {
+            const cleanSku = (p.sku || p.id || '').trim().toUpperCase();
+            return { ...p, id: cleanSku || p.id, sku: cleanSku || p.sku };
+          });
+          setProducts(normalized);
           try {
-            localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(sheetProducts));
+            localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(normalized));
           } catch (e) {
             console.error('Lỗi lưu cache:', e);
           }
@@ -434,21 +446,27 @@ export default function App() {
   };
 
   // Cập nhật danh mục sản phẩm từ bên ngoài (nhập Excel, đồng bộ Sheet modal)
-  const handleUpdateProducts = useCallback(async (newProducts: Product[]) => {
-    setProducts(newProducts);
+  const handleUpdateProducts = useCallback(async (newProducts: Product[], syncSheet: boolean = true) => {
+    const normalized = newProducts.map(p => {
+      const cleanSku = (p.sku || p.id || '').trim().toUpperCase();
+      return { ...p, id: cleanSku || p.id, sku: cleanSku || p.sku };
+    });
+    setProducts(normalized);
     try {
-      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(newProducts));
+      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(normalized));
     } catch (e) {
       console.error('Lỗi lưu LocalStorage:', e);
     }
 
+    if (!syncSheet) return;
+
     // Tự động đẩy lên Google Sheet ngay lập tức
     try {
       const cfg = getLocalSheetsConfig();
-      if (newProducts.length > 0) {
-        setSyncToast({ message: `Đang lưu ${newProducts.length} sản phẩm lên Google Sheet...`, type: 'syncing' });
-        await pushProductsToGoogleSheet(newProducts, cfg.sheetTitle || 'Sản phẩm');
-        setSyncToast({ message: `Đã cập nhật & đồng bộ ${newProducts.length} sản phẩm lên Google Sheet thành công!`, type: 'success' });
+      if (normalized.length > 0) {
+        setSyncToast({ message: `Đang lưu ${normalized.length} sản phẩm lên Google Sheet...`, type: 'syncing' });
+        await pushProductsToGoogleSheet(normalized, cfg.sheetTitle || 'Sản phẩm');
+        setSyncToast({ message: `Đã cập nhật & đồng bộ ${normalized.length} sản phẩm lên Google Sheet thành công!`, type: 'success' });
         setTimeout(() => setSyncToast(null), 3500);
       }
     } catch (e: any) {

@@ -441,7 +441,7 @@ export function parseProductsFromRawRows(rawRows: any[][]): Product[] {
     const rawSpecs = colMap.specs !== -1 && row[colMap.specs] ? String(row[colMap.specs]).trim() : '';
 
     const specifications = parseSpecsTextToGroups(rawSpecs);
-    const stableId = `excel-${sku.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
+    const stableId = sku;
 
     extracted.push({
       id: stableId,

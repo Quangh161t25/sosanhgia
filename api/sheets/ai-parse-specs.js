@@ -177,6 +177,9 @@ function parseProductFromRowData(row, colIndices, rowIndex) {
     try {
       const pObj = JSON.parse(row[colIndices.json]);
       if (pObj && pObj.sku && String(pObj.sku).trim().toUpperCase() === rowSku.toUpperCase()) {
+        const cleanSku2 = String(pObj.sku).trim().toUpperCase();
+        pObj.id = cleanSku2;
+        pObj.sku = cleanSku2;
         pObj.pricing = {
           costPrice,
           distributorPrice,
@@ -203,12 +206,12 @@ function parseProductFromRowData(row, colIndices, rowIndex) {
   if (rawSpecsText) {
     specifications = parseSpecsTextToGroups(rawSpecsText);
   }
-  const rowId = colIndices.id !== -1 && row[colIndices.id] ? String(row[colIndices.id]).trim() : "";
-  const cleanSku = rowSku.toUpperCase();
-  const stableId = rowId || (cleanSku ? `sheet-${cleanSku.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}` : `sheet-row-${rowIndex}`);
+  const rowId = colIndices.id !== -1 && row[colIndices.id] ? String(row[colIndices.id]).trim().toUpperCase() : "";
+  const cleanSku = rowSku.trim().toUpperCase();
+  const stableId = cleanSku || rowId || `SP-ROW-${rowIndex}`;
   return {
     id: stableId,
-    sku: cleanSku,
+    sku: cleanSku || stableId,
     name: rowName,
     brand,
     categoryGroup,

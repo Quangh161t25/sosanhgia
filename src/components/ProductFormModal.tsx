@@ -329,9 +329,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       .map(t => t.trim())
       .filter(t => Boolean(t));
 
+    const cleanSku = sku.trim().toUpperCase();
+
     const updatedProduct: Product = {
-      id: productToEdit ? productToEdit.id : `prod-${Date.now()}`,
-      sku: sku.trim().toUpperCase(),
+      id: cleanSku || (productToEdit ? productToEdit.id : `SP-${Date.now()}`),
+      sku: cleanSku,
       name: name.trim(),
       categoryGroup: categoryGroup.trim(),
       categoryType: categoryType.trim(),

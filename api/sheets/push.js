@@ -166,8 +166,9 @@ async function pushProductsToSheet(products, targetSheetTitle = DEFAULT_SHEET_TI
     const npp = p.pricing?.distributorPrice || 0;
     const floor = p.pricing?.floorPrice || 0;
     const retail = p.pricing?.retailPrice || 0;
+    const cleanSku = (p.sku || p.id || "").trim().toUpperCase();
     const row = [
-      p.sku || "",
+      cleanSku,
       p.name || "",
       p.brand || "",
       p.categoryGroup || "",
@@ -185,9 +186,9 @@ async function pushProductsToSheet(products, targetSheetTitle = DEFAULT_SHEET_TI
       formatSpecsToText(p.specifications),
       // Cột 14: Thông số kỹ thuật
       p.status || "active",
-      p.id || "",
+      cleanSku,
       p.updatedAt || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      JSON.stringify(p)
+      JSON.stringify({ ...p, id: cleanSku, sku: cleanSku })
     ];
     rows.push(row);
   }

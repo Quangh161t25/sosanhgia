@@ -239,8 +239,10 @@ export async function pushProductsToSheet(
     const floor = p.pricing?.floorPrice || 0;
     const retail = p.pricing?.retailPrice || 0;
 
+    const cleanSku = (p.sku || p.id || '').trim().toUpperCase();
+
     const row = [
-      p.sku || '',
+      cleanSku,
       p.name || '',
       p.brand || '',
       p.categoryGroup || '',
@@ -256,9 +258,9 @@ export async function pushProductsToSheet(
       p.description || '', // Cột 13: Mô tả sản phẩm
       formatSpecsToText(p.specifications), // Cột 14: Thông số kỹ thuật
       p.status || 'active',
-      p.id || '',
+      cleanSku,
       p.updatedAt || new Date().toISOString().split('T')[0],
-      JSON.stringify(p),
+      JSON.stringify({ ...p, id: cleanSku, sku: cleanSku }),
     ];
     rows.push(row);
   }
@@ -575,6 +577,9 @@ export function parseProductFromRowData(
         pObj.sku &&
         String(pObj.sku).trim().toUpperCase() === rowSku.toUpperCase()
       ) {
+        const cleanSku = String(pObj.sku).trim().toUpperCase();
+        pObj.id = cleanSku;
+        pObj.sku = cleanSku;
         // CẬP NHẬT GIÁ VÀ CÁC THÔNG TIN TỪ Ô THỰC TẾ TRÊN GOOGLE SHEET:
         // Đảm bảo giá luôn lấy từ các cột G, H, I, J thực tế trên bảng tính
         pObj.pricing = {
@@ -613,14 +618,13 @@ export function parseProductFromRowData(
     specifications = parseSpecsTextToGroups(rawSpecsText);
   }
 
-  const rowId = colIndices.id !== -1 && row[colIndices.id] ? String(row[colIndices.id]).trim() : '';
-  const cleanSku = rowSku.toUpperCase();
-  const stableId =
-    rowId || (cleanSku ? `sheet-${cleanSku.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}` : `sheet-row-${rowIndex}`);
+  const rowId = colIndices.id !== -1 && row[colIndices.id] ? String(row[colIndices.id]).trim().toUpperCase() : '';
+  const cleanSku = rowSku.trim().toUpperCase();
+  const stableId = cleanSku || rowId || `SP-ROW-${rowIndex}`;
 
   return {
     id: stableId,
-    sku: cleanSku,
+    sku: cleanSku || stableId,
     name: rowName,
     brand,
     categoryGroup,

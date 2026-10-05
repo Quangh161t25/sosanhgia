@@ -23,7 +23,7 @@ interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentProducts: Product[];
-  onImportProducts: (newProducts: Product[]) => void;
+  onImportProducts: (newProducts: Product[], syncSheet?: boolean) => void | Promise<void>;
   showCostPrice: boolean;
 }
 
@@ -40,12 +40,44 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>('');
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [duplicateMode, setDuplicateMode] = useState<'update' | 'skip'>('update');
   const [autoSyncSheet, setAutoSyncSheet] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const workbookRef = useRef<XLSX.WorkBook | null>(null);
+
+  // Bản đồ sản phẩm hiện tại theo Mã SKU / ID để đối chiếu trùng lặp
+  const existingMap = React.useMemo(() => {
+    const map = new Map<string, Product>();
+    currentProducts.forEach(p => {
+      const key = (p.sku || p.id || '').trim().toUpperCase();
+      if (key) map.set(key, p);
+    });
+    return map;
+  }, [currentProducts]);
+
+  // Phân tích thống kê Mới vs Trùng ID
+  const { newCount, duplicateCount, analyzedItems } = React.useMemo(() => {
+    let news = 0;
+    let dups = 0;
+    const items = parsedProducts.map(p => {
+      const key = (p.sku || p.id || '').trim().toUpperCase();
+      const isDuplicate = existingMap.has(key);
+      if (isDuplicate) {
+        dups++;
+      } else {
+        news++;
+      }
+      return {
+        product: p,
+        key,
+        isDuplicate,
+      };
+    });
+    return { newCount: news, duplicateCount: dups, analyzedItems: items };
+  }, [parsedProducts, existingMap]);
 
   if (!isOpen) return null;
 
@@ -200,55 +232,80 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       let finalProducts: Product[] = [];
 
       if (importMode === 'replace') {
-        finalProducts = [...parsedProducts];
+        finalProducts = parsedProducts.map(p => {
+          const key = (p.sku || p.id || '').trim().toUpperCase();
+          return {
+            ...p,
+            id: key,
+            sku: key,
+            updatedAt: new Date().toISOString().split('T')[0],
+          };
+        });
       } else {
-        // Mode merge: ghi đè theo SKU nếu trùng, thêm mới nếu chưa có
+        // Mode merge:
+        // 1. Tạo Map bắt đầu từ danh sách sản phẩm hiện tại
         const productMap = new Map<string, Product>();
         currentProducts.forEach(p => {
-          if (p && p.sku) {
-            productMap.set(p.sku.trim().toUpperCase(), p);
-          } else if (p && p.id) {
-            productMap.set(p.id, p);
+          const key = (p.sku || p.id || '').trim().toUpperCase();
+          if (key) {
+            productMap.set(key, { ...p, id: key, sku: key });
           }
         });
+
+        // 2. Xử lý từng sản phẩm từ file Excel tải lên
         parsedProducts.forEach(p => {
-          if (p && p.sku) {
-            productMap.set(p.sku.trim().toUpperCase(), p);
-          } else if (p && p.id) {
-            productMap.set(p.id, p);
+          const key = (p.sku || p.id || '').trim().toUpperCase();
+          if (!key) return;
+
+          const exists = productMap.has(key);
+          if (exists) {
+            if (duplicateMode === 'update') {
+              // CẬP NHẬT LẠI DÒNG: Ghi đè dữ liệu mới từ Excel
+              const existingProd = productMap.get(key)!;
+              productMap.set(key, {
+                ...existingProd,
+                ...p,
+                id: key,
+                sku: key,
+                updatedAt: new Date().toISOString().split('T')[0],
+              });
+            } else {
+              // BỎ QUA DÒNG TRÙNG: Giữ nguyên dữ liệu cũ trong hệ thống
+            }
+          } else {
+            // SẢN PHẨM MỚI: Thêm mới vào hệ thống
+            productMap.set(key, {
+              ...p,
+              id: key,
+              sku: key,
+              updatedAt: new Date().toISOString().split('T')[0],
+            });
           }
         });
+
         finalProducts = Array.from(productMap.values());
       }
 
-      // Cập nhật state hệ thống ngay lập tức
-      onImportProducts(finalProducts);
+      // Cập nhật state hệ thống (sẽ tự động đồng bộ Google Sheet nếu autoSyncSheet = true)
+      await onImportProducts(finalProducts, autoSyncSheet);
 
-      // Tự động đẩy lên Google Sheet nếu được chọn
-      let syncSuccess = false;
-      let syncErrorMsg = '';
-      if (autoSyncSheet) {
-        try {
-          const cfg = getLocalSheetsConfig();
-          await pushProductsToGoogleSheet(finalProducts, cfg.sheetTitle || 'Sản phẩm');
-          syncSuccess = true;
-        } catch (syncErr: any) {
-          console.error('Lỗi đồng bộ Google Sheet khi nhập Excel:', syncErr);
-          syncErrorMsg = syncErr?.message || 'Không thể kết nối đến Google Sheets';
+      const addedCount = newCount;
+      const updatedCount = duplicateMode === 'update' ? duplicateCount : 0;
+      const skippedCount = duplicateMode === 'skip' ? duplicateCount : 0;
+
+      let msg = `Nhập dữ liệu thành công!\n- Tổng cộng danh mục: ${finalProducts.length} sản phẩm.\n- Đã thêm mới: ${addedCount} sản phẩm.\n`;
+      if (duplicateCount > 0 && importMode !== 'replace') {
+        if (duplicateMode === 'update') {
+          msg += `- Đã cập nhật lại: ${updatedCount} dòng trùng Mã SKU theo file Excel.\n`;
+        } else {
+          msg += `- Đã bỏ qua: ${skippedCount} dòng trùng Mã SKU (giữ nguyên dữ liệu cũ).\n`;
         }
       }
-
-      if (autoSyncSheet && !syncSuccess) {
-        alert(
-          `Đã nạp thành công ${finalProducts.length} sản phẩm vào ứng dụng!\n\nLưu ý: Đồng bộ lên Google Sheet chưa hoàn tất (${syncErrorMsg}). Hệ thống đã lưu dữ liệu trên trình duyệt của bạn.`
-        );
-      } else {
-        alert(
-          `Nhập dữ liệu thành công!\n- Tổng cộng: ${finalProducts.length} sản phẩm trong danh mục.\n${
-            autoSyncSheet ? '- Đã đồng bộ trực tiếp lên Google Sheet SO_SANH_GIA!' : ''
-          }`
-        );
+      if (autoSyncSheet) {
+        msg += `- Đã tự động gửi yêu cầu đồng bộ trực tiếp lên Google Sheet!`;
       }
+
+      alert(msg);
       onClose();
     } catch (err: any) {
       console.error('Lỗi khi lưu sản phẩm:', err);
@@ -415,15 +472,25 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           {parsedProducts.length > 0 && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                     <Eye className="w-4 h-4 text-blue-600" />
-                    Bảng xem trước dữ liệu trích xuất ({parsedProducts.length} sản phẩm)
+                    Bảng xem trước dữ liệu ({parsedProducts.length} sản phẩm)
                   </h4>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {newCount} sản phẩm mới
+                    </span>
+                    {duplicateCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        {duplicateCount} trùng Mã SKU / ID
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Tùy chọn chế độ nhập */}
-                <div className="flex items-center gap-4 text-xs font-medium text-slate-700 bg-white p-2 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3 text-xs font-medium text-slate-700 bg-white p-2 rounded-xl border border-slate-200">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
@@ -431,9 +498,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                       value="merge"
                       checked={importMode === 'merge'}
                       onChange={() => setImportMode('merge')}
-                      className="text-emerald-600 focus:ring-emerald-500"
+                      className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
-                    <span>Thêm mới & Cập nhật theo SKU</span>
+                    <span className="font-semibold text-slate-800">Thêm & Gộp theo Mã SKU</span>
                   </label>
 
                   <label className="flex items-center gap-1.5 cursor-pointer">
@@ -443,12 +510,89 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                       value="replace"
                       checked={importMode === 'replace'}
                       onChange={() => setImportMode('replace')}
-                      className="text-rose-600 focus:ring-rose-500"
+                      className="text-rose-600 focus:ring-rose-500 cursor-pointer"
                     />
-                    <span className="text-rose-700 font-semibold">Thay thế toàn bộ danh mục</span>
+                    <span className="text-rose-700 font-semibold">Thay thế toàn bộ</span>
                   </label>
                 </div>
               </div>
+
+              {/* KHỐI LỰA CHỌN KHI PHÁT HIỆN TRÙNG MÃ SKU / ID */}
+              {duplicateCount > 0 && importMode === 'merge' && (
+                <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h5 className="text-xs font-bold text-amber-950">
+                          Phát hiện {duplicateCount} sản phẩm trùng Mã SKU / ID với hệ thống hiện tại
+                        </h5>
+                        <span className="text-[11px] text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md font-medium">
+                          ({newCount} mới + {duplicateCount} đã tồn tại)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Chọn phương án xử lý cho các dòng bị trùng mã SKU:
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <label
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                        duplicateMode === 'update'
+                          ? 'bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="duplicateMode"
+                        value="update"
+                        checked={duplicateMode === 'update'}
+                        onChange={() => setDuplicateMode('update')}
+                        className="mt-0.5 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          1. Cập nhật lại dòng (Ghi đè)
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 font-semibold">
+                            Khuyên dùng
+                          </span>
+                        </span>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Cập nhật giá và thông tin mới từ file Excel cho <b>{duplicateCount}</b> sản phẩm trùng, đồng thời nạp <b>{newCount}</b> sản phẩm mới.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                        duplicateMode === 'skip'
+                          ? 'bg-white border-blue-500 shadow-xs ring-2 ring-blue-500/20'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="duplicateMode"
+                        value="skip"
+                        checked={duplicateMode === 'skip'}
+                        onChange={() => setDuplicateMode('skip')}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-slate-900">
+                          2. Bỏ qua dòng bị trùng
+                        </span>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Giữ nguyên dữ liệu cũ trong hệ thống cho <b>{duplicateCount}</b> sản phẩm trùng, chỉ nạp thêm <b>{newCount}</b> sản phẩm mới từ Excel.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* BẢNG XEM TRƯỚC */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -456,7 +600,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   <table className="w-full text-left border-collapse text-xs">
                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-xs text-slate-700 border-b border-slate-200 z-10">
                       <tr>
-                        <th className="p-2.5 font-bold">Mã SKU</th>
+                        <th className="p-2.5 font-bold">Mã SKU / Trạng thái</th>
                         <th className="p-2.5 font-bold">Tên sản phẩm</th>
                         <th className="p-2.5 font-bold">Thương hiệu</th>
                         <th className="p-2.5 font-bold">Nhóm / Loại</th>
@@ -468,9 +612,30 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {parsedProducts.map((p, idx) => (
+                      {analyzedItems.map(({ product: p, isDuplicate }, idx) => (
                         <tr key={p.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-2.5 font-mono font-bold text-blue-700">{p.sku}</td>
+                          <td className="p-2.5">
+                            <div className="font-mono font-bold text-blue-700">{p.sku}</div>
+                            {importMode === 'replace' ? (
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 mt-0.5">
+                                Thay thế
+                              </span>
+                            ) : isDuplicate ? (
+                              duplicateMode === 'update' ? (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 mt-0.5">
+                                  Trùng ID • Sẽ cập nhật
+                                </span>
+                              ) : (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300 mt-0.5">
+                                  Trùng ID • Sẽ bỏ qua
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-0.5">
+                                Mới • Sẽ thêm
+                              </span>
+                            )}
+                          </td>
                           <td className="p-2.5 font-semibold text-slate-900 max-w-[200px] truncate" title={p.name}>
                             {p.name}
                           </td>
@@ -530,7 +695,12 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           <div className="text-xs text-slate-500">
             {parsedProducts.length > 0 && (
               <span>
-                Sẵn sàng nạp <b>{parsedProducts.length}</b> sản phẩm vào hệ thống.
+                Tổng cộng: <b>{parsedProducts.length}</b> sản phẩm
+                {importMode === 'merge' && duplicateCount > 0 && (
+                  <span className="ml-1.5 text-slate-600 font-medium">
+                    ({newCount} mới, {duplicateCount} trùng - {duplicateMode === 'update' ? 'sẽ cập nhật dòng' : 'sẽ bỏ qua'})
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -558,7 +728,15 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Xác nhận nhập {parsedProducts.length} sản phẩm</span>
+                  <span>
+                    {importMode === 'replace'
+                      ? `Thay thế toàn bộ (${parsedProducts.length} sản phẩm)`
+                      : duplicateCount > 0
+                      ? duplicateMode === 'update'
+                        ? `Cập nhật ${duplicateCount} dòng & Thêm ${newCount} mới`
+                        : `Bỏ qua ${duplicateCount} trùng & Thêm ${newCount} mới`
+                      : `Xác nhận nạp ${newCount} sản phẩm`}
+                  </span>
                 </>
               )}
             </button>
