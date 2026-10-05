@@ -1,4 +1,4 @@
-import { pushProductsToSheet } from '../../src/server/googleSheetsService';
+import { pushProductsToSheet } from '../../server/googleSheetsService';
 
 export const config = {
   api: {

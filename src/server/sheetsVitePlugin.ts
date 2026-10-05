@@ -8,7 +8,7 @@ import {
   pullEmployeesFromSheet,
   pullSettingsFromSheet,
   pushSettingsToSheet,
-} from './googleSheetsService';
+} from './googleSheetsService.ts';
 
 function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {

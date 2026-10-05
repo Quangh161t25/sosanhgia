@@ -1,10 +1,54 @@
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
-import { Product, SpecGroup, SpecItem } from '../types/product';
+import type { Product, SpecGroup, SpecItem } from '../types/product.ts';
 
 const SPREADSHEET_ID = '16I-JJUzrLWHh0nuKqoJwggAcrF_xIpBbT6EAcN5Geeg';
 const DEFAULT_SHEET_TITLE = 'Sản phẩm';
+
+export function normalizeCredentials(raw: any) {
+  if (!raw || typeof raw !== 'object') return raw;
+  const creds: any = { ...raw };
+
+  // 1. client_email
+  if (!creds.client_email) {
+    creds.client_email =
+      creds.clientemail ||
+      creds.client_email_address ||
+      creds.clientEmail ||
+      '';
+  }
+
+  // 2. private_key
+  if (!creds.private_key) {
+    creds.private_key = creds.privatekey || creds.privateKey || '';
+  }
+  if (typeof creds.private_key === 'string') {
+    creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+  }
+
+  // 3. project_id
+  if (!creds.project_id) {
+    creds.project_id = creds.projectid || creds.projectId || '';
+  }
+
+  // 4. private_key_id
+  if (!creds.private_key_id) {
+    creds.private_key_id = creds.privatekeyid || creds.privateKeyId || '';
+  }
+
+  // 5. client_id
+  if (!creds.client_id) {
+    creds.client_id = creds.clientid || creds.clientId || '';
+  }
+
+  // 6. type
+  if (creds.type === 'serviceaccount') {
+    creds.type = 'service_account';
+  }
+
+  return creds;
+}
 
 function getCredentials() {
   const possiblePaths = [
@@ -15,7 +59,8 @@ function getCredentials() {
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
       try {
-        return JSON.parse(fs.readFileSync(p, 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+        return normalizeCredentials(parsed);
       } catch (e) {
         console.error('Failed to parse service-account.json at', p, e);
       }
@@ -23,11 +68,20 @@ function getCredentials() {
   }
 
   if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    try {
+      let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON.trim();
+      if (raw.startsWith('"') && raw.endsWith('"')) {
+        raw = JSON.parse(raw);
+      }
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return normalizeCredentials(parsed);
+    } catch (e) {
+      console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON env:', e);
+    }
   }
 
   // Fallback mặc định cho môi trường Vercel / Cloud nếu chưa cài đặt biến môi trường
-  return {
+  return normalizeCredentials({
     type: "service_account",
     project_id: "cty-lnk-161",
     private_key_id: "8b79277cbe4d9b5a7b8254a0961a5d4932283388",
@@ -39,7 +93,7 @@ function getCredentials() {
     auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
     client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/lnk-773%40cty-lnk-161.iam.gserviceaccount.com",
     universe_domain: "googleapis.com"
-  };
+  });
 }
 
 export function getSheetsClient() {

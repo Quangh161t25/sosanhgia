@@ -1,4 +1,4 @@
-import { aiAnalyzeSheetSpecs } from '../../src/server/googleSheetsService';
+import { aiAnalyzeSheetSpecs } from '../../server/googleSheetsService';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');

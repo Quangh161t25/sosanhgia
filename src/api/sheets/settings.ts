@@ -1,4 +1,4 @@
-import { pullSettingsFromSheet, pushSettingsToSheet } from '../../src/server/googleSheetsService';
+import { pullSettingsFromSheet, pushSettingsToSheet } from '../../server/googleSheetsService';
 
 export const config = {
   api: {
