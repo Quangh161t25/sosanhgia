@@ -23,7 +23,10 @@ import {
   Save,
   Loader2,
   ExternalLink,
+  Upload,
+  FileSpreadsheet,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { formatVND, calculateFinancials } from '../utils/pricing';
 import {
   parseSpecsWithAI,
@@ -32,6 +35,7 @@ import {
   saveGeminiKey,
   testGeminiApiKey,
 } from '../utils/aiSpecParser';
+import { parseProductsFromRawRows, findBestProductSheet } from '../utils/excelParser';
 
 interface ProductFormModalProps {
   productToEdit: Product | null;
@@ -39,6 +43,7 @@ interface ProductFormModalProps {
   onClose: () => void;
   onSave: (product: Product) => void;
   initialOpenAiSpec?: boolean;
+  onOpenExcelImport?: () => void;
 }
 
 const SAMPLE_IMAGES = [
@@ -54,9 +59,69 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onClose,
   onSave,
   initialOpenAiSpec = false,
+  onOpenExcelImport,
 }) => {
   // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
   const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
+
+  const handleQuickFillFromExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const data = await f.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        alert('File Excel không có trang tính (Sheet) nào.');
+        return;
+      }
+      const sheetName = findBestProductSheet(workbook);
+      const ws = workbook.Sheets[sheetName];
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (!rawRows || rawRows.length < 2) {
+        alert('File Excel không có dữ liệu sản phẩm hợp lệ (cần ít nhất 2 dòng).');
+        return;
+      }
+      const extracted = parseProductsFromRawRows(rawRows);
+      if (extracted.length === 0) {
+        alert('Không tìm thấy thông tin sản phẩm trong file. Vui lòng kiểm tra lại tiêu đề các cột.');
+        return;
+      }
+      if (extracted.length > 1 && onOpenExcelImport) {
+        const chooseBulk = window.confirm(
+          `File này có ${extracted.length} sản phẩm.\n\n- Nhấn "OK" để chuyển sang bảng Nhập Excel hàng loạt (nạp tất cả ${extracted.length} sản phẩm vào danh mục).\n- Nhấn "Cancel" để chỉ lấy thông tin sản phẩm đầu tiên điền vào form này.`
+        );
+        if (chooseBulk) {
+          onClose();
+          onOpenExcelImport();
+          return;
+        }
+      }
+      // Điền sản phẩm đầu tiên vào form
+      const first = extracted[0];
+      if (first.sku) setSku(first.sku);
+      if (first.name) setName(first.name);
+      if (first.brand) setBrand(first.brand);
+      if (first.categoryGroup) setCategoryGroup(first.categoryGroup);
+      if (first.categoryType) setCategoryType(first.categoryType);
+      if (first.warrantyMonths !== undefined) setWarrantyMonths(first.warrantyMonths);
+      if (first.pricing) {
+        if (first.pricing.costPrice) setCostPrice(first.pricing.costPrice);
+        if (first.pricing.distributorPrice) setDistributorPrice(first.pricing.distributorPrice);
+        if (first.pricing.floorPrice) setFloorPrice(first.pricing.floorPrice);
+        if (first.pricing.retailPrice) setRetailPrice(first.pricing.retailPrice);
+      }
+      if (first.description) setDescription(first.description);
+      if (first.notes) setNotes(first.notes);
+      if (first.tags && first.tags.length > 0) setTagsInput(first.tags.join(', '));
+      if (first.specifications && first.specifications.length > 0) setSpecGroups(first.specifications);
+      if (first.thumbnail) setThumbnail(first.thumbnail);
+      alert(`Đã điền tự động thông tin sản phẩm "${first.name}" (${first.sku}) từ file Excel thành công!`);
+    } catch (err: any) {
+      alert('Lỗi khi đọc file Excel: ' + (err?.message || 'Không rõ'));
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
@@ -411,7 +476,55 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <div className="flex-1 overflow-y-auto bg-muted/50 p-4 sm:p-5 custom-scrollbar">
           <div className="max-w-4xl mx-auto">
             <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
-              
+              {/* BANNER TẢI FILE EXCEL VÀO SẢN PHẨM THÊM */}
+              {!productToEdit && (
+                <div className="w-full p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300/80 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        Tải thông tin từ file Excel (.xlsx / .csv)
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Tiết kiệm thời gian
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Tải file Excel lên để tự động điền các thông tin vào form này, hoặc nạp hàng loạt vào danh mục sản phẩm.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold shadow-2xs transition-all cursor-pointer">
+                      <Upload className="w-4 h-4 text-emerald-600" />
+                      <span>Chọn file Excel để điền tự động</span>
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        onChange={handleQuickFillFromExcel}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {onOpenExcelImport && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenExcelImport();
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        <span>Nhập Excel hàng loạt</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* CARD 1: THÔNG TIN CƠ BẢN & HÌNH ẢNH */}
               <div className="w-full bg-card p-3.5 sm:p-4 md:p-5 rounded-xl border border-border shadow-xs space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 sm:pb-2.5 border-b border-primary/20">

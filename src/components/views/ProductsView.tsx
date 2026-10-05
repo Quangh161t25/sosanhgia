@@ -64,6 +64,7 @@ interface ProductsViewProps {
   onExportCatalog: () => void;
   showCostPrice: boolean;
   onUpdateProducts?: (newProducts: Product[]) => void;
+  onOpenExcelImport?: () => void;
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({
@@ -79,6 +80,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onExportCatalog,
   showCostPrice,
   onUpdateProducts,
+  onOpenExcelImport,
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
@@ -569,7 +571,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             {/* Nút Nhập Excel (.xlsx, .xls, .csv) */}
             <button
               type="button"
-              onClick={() => setIsExcelImportOpen(true)}
+              onClick={onOpenExcelImport ? onOpenExcelImport : () => setIsExcelImportOpen(true)}
               title="Tải lên dữ liệu sản phẩm từ file Excel (.xlsx, .xls, .csv)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 transition-all font-semibold text-xs cursor-pointer shadow-2xs"
             >
@@ -1244,17 +1246,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       />
 
       {/* MODAL NHẬP DỮ LIỆU SẢN PHẨM TỪ EXCEL (.XLSX, .XLS, .CSV) */}
-      <ExcelImportModal
-        isOpen={isExcelImportOpen}
-        onClose={() => setIsExcelImportOpen(false)}
-        currentProducts={products}
-        onImportProducts={newProducts => {
-          if (onUpdateProducts) {
-            onUpdateProducts(newProducts);
-          }
-        }}
-        showCostPrice={showCostPrice}
-      />
+      {!onOpenExcelImport && (
+        <ExcelImportModal
+          isOpen={isExcelImportOpen}
+          onClose={() => setIsExcelImportOpen(false)}
+          currentProducts={products}
+          onImportProducts={newProducts => {
+            if (onUpdateProducts) {
+              onUpdateProducts(newProducts);
+            }
+          }}
+          showCostPrice={showCostPrice}
+        />
+      )}
 
     </div>
   );

@@ -14,6 +14,7 @@ import { CopyrightView } from './components/views/CopyrightView';
 import { ComparisonMatrix } from './components/ComparisonMatrix';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
+import { ExcelImportModal } from './components/ExcelImportModal';
 import { FloatingCompareDock } from './components/FloatingCompareDock';
 import { calculateFinancials } from './utils/pricing';
 import {
@@ -299,6 +300,7 @@ export default function App() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [openFormWithAi, setOpenFormWithAi] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   const handleEditProductFromMatrix = useCallback((product: Product, openAiSpec = false) => {
     setEditingProduct(product);
@@ -623,6 +625,7 @@ export default function App() {
               onExportCatalog={handleExportCatalog}
               showCostPrice={showCostPrice}
               onUpdateProducts={handleUpdateProducts}
+              onOpenExcelImport={() => setIsExcelImportOpen(true)}
             />
           )}
 
@@ -702,6 +705,16 @@ export default function App() {
           setOpenFormWithAi(false);
         }}
         onSave={handleSaveProduct}
+        onOpenExcelImport={() => setIsExcelImportOpen(true)}
+      />
+
+      {/* Modal Nhập Dữ Liệu Excel (.xlsx, .xls, .csv) toàn hệ thống */}
+      <ExcelImportModal
+        isOpen={isExcelImportOpen}
+        onClose={() => setIsExcelImportOpen(false)}
+        currentProducts={products}
+        onImportProducts={handleUpdateProducts}
+        showCostPrice={showCostPrice}
       />
 
       {/* Toast thông báo đồng bộ Google Sheet thời gian thực */}
