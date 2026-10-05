@@ -44,21 +44,22 @@ export function googleSheetsVitePlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
+        const pathname = url.split('?')[0].replace(/\/+$/, '') || '/';
 
         // Chỉ xử lý các route bắt đầu bằng /api/sheets
-        if (!url.startsWith('/api/sheets')) {
+        if (!pathname.startsWith('/api/sheets')) {
           return next();
         }
 
         try {
           // 1. GET /api/sheets/info
-          if (req.method === 'GET' && url === '/api/sheets/info') {
+          if (req.method === 'GET' && pathname === '/api/sheets/info') {
             const info = await getSpreadsheetInfo();
             return sendJson(res, { success: true, ...info });
           }
 
           // 2. GET /api/sheets/products
-          if (req.method === 'GET' && url.startsWith('/api/sheets/products')) {
+          if (req.method === 'GET' && pathname === '/api/sheets/products') {
             const parsedUrl = new URL(url, 'http://localhost');
             const sheetTitle = parsedUrl.searchParams.get('sheetTitle') || 'Sản phẩm';
             const products = await pullProductsFromSheet(sheetTitle);
@@ -66,13 +67,13 @@ export function googleSheetsVitePlugin(): Plugin {
           }
 
           // 2b. GET /api/sheets/employees
-          if (req.method === 'GET' && url.startsWith('/api/sheets/employees')) {
+          if (req.method === 'GET' && pathname === '/api/sheets/employees') {
             const employees = await pullEmployeesFromSheet('NHAN_VIEN');
             return sendJson(res, { success: true, count: employees.length, employees });
           }
 
           // 3. POST /api/sheets/push
-          if (req.method === 'POST' && url === '/api/sheets/push') {
+          if (req.method === 'POST' && pathname === '/api/sheets/push') {
             const body = await parseJsonBody(req);
             const { products, sheetTitle = 'Sản phẩm' } = body;
             if (!Array.isArray(products)) {
@@ -83,7 +84,7 @@ export function googleSheetsVitePlugin(): Plugin {
           }
 
           // 4. POST /api/sheets/pull
-          if (req.method === 'POST' && url === '/api/sheets/pull') {
+          if (req.method === 'POST' && pathname === '/api/sheets/pull') {
             const body = await parseJsonBody(req);
             const sheetTitle = body.sheetTitle || 'Sản phẩm';
             const products = await pullProductsFromSheet(sheetTitle);
@@ -91,7 +92,7 @@ export function googleSheetsVitePlugin(): Plugin {
           }
 
           // 5. POST /api/sheets/ai-parse-specs
-          if (req.method === 'POST' && url === '/api/sheets/ai-parse-specs') {
+          if (req.method === 'POST' && pathname === '/api/sheets/ai-parse-specs') {
             const body = await parseJsonBody(req);
             const sheetTitle = body.sheetTitle || 'Sản phẩm';
             const apiKey = body.apiKey;

@@ -90,11 +90,19 @@ export async function pushProductsToGoogleSheet(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ products, sheetTitle }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}: Lỗi đẩy dữ liệu lên Google Sheet`);
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    console.error('API /api/sheets/push returned non-JSON:', text.slice(0, 200));
+    throw new Error(`Máy chủ Google Sheet phản hồi lỗi định dạng (HTTP ${res.status}). Vui lòng thử lại.`);
   }
+
   const data: SyncPushResponse = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `HTTP ${res.status}: Lỗi đẩy dữ liệu lên Google Sheet`);
+  }
+
   saveLocalSheetsConfig({
     sheetTitle,
     lastSyncedAt: new Date().toISOString(),
@@ -110,11 +118,19 @@ export async function pullProductsFromGoogleSheet(
   sheetTitle: string = 'Sản phẩm'
 ): Promise<Product[]> {
   const res = await fetch(`/api/sheets/products?sheetTitle=${encodeURIComponent(sheetTitle)}`);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}: Lỗi tải dữ liệu từ Google Sheet`);
+  
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    console.error('API /api/sheets/products returned non-JSON:', text.slice(0, 200));
+    throw new Error(`Máy chủ Google Sheet phản hồi lỗi định dạng (HTTP ${res.status}). Vui lòng thử lại.`);
   }
+
   const data: SyncPullResponse = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `HTTP ${res.status}: Lỗi tải dữ liệu từ Google Sheet`);
+  }
+
   saveLocalSheetsConfig({
     sheetTitle,
     lastSyncedAt: new Date().toISOString(),

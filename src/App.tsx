@@ -422,12 +422,27 @@ export default function App() {
   };
 
   // Cập nhật danh mục sản phẩm từ bên ngoài (nhập Excel, đồng bộ Sheet modal)
-  const handleUpdateProducts = useCallback((newProducts: Product[]) => {
+  const handleUpdateProducts = useCallback(async (newProducts: Product[]) => {
     setProducts(newProducts);
     try {
       localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(newProducts));
     } catch (e) {
       console.error('Lỗi lưu LocalStorage:', e);
+    }
+
+    // Tự động đẩy lên Google Sheet ngay lập tức
+    try {
+      const cfg = getLocalSheetsConfig();
+      if (newProducts.length > 0) {
+        setSyncToast({ message: `Đang lưu ${newProducts.length} sản phẩm lên Google Sheet...`, type: 'syncing' });
+        await pushProductsToGoogleSheet(newProducts, cfg.sheetTitle || 'Sản phẩm');
+        setSyncToast({ message: `Đã cập nhật & đồng bộ ${newProducts.length} sản phẩm lên Google Sheet thành công!`, type: 'success' });
+        setTimeout(() => setSyncToast(null), 3500);
+      }
+    } catch (e: any) {
+      console.error('Lỗi tự động đồng bộ Google Sheet khi cập nhật danh sách:', e);
+      setSyncToast({ message: `Lỗi đồng bộ Google Sheet: ${e?.message || 'Không thể kết nối'}`, type: 'error' });
+      setTimeout(() => setSyncToast(null), 6000);
     }
   }, []);
 
@@ -451,10 +466,10 @@ export default function App() {
     // 2. Tự động đồng bộ trực tiếp lên Google Sheet ngay lập tức
     try {
       const cfg = getLocalSheetsConfig();
-      if (cfg.autoSyncOnSave && nextList.length > 0) {
-        setSyncToast({ message: `Đang lưu "${updated.name}" lên Google Sheet...`, type: 'syncing' });
+      if (nextList.length > 0) {
+        setSyncToast({ message: `Đang lưu "${updated.name || updated.sku}" lên Google Sheet...`, type: 'syncing' });
         await pushProductsToGoogleSheet(nextList, cfg.sheetTitle || 'Sản phẩm');
-        setSyncToast({ message: `Đã lưu & đồng bộ "${updated.sku}" lên Google Sheet thành công!`, type: 'success' });
+        setSyncToast({ message: `Đã lưu & đồng bộ "${updated.sku || updated.name}" lên Google Sheet thành công!`, type: 'success' });
         setTimeout(() => setSyncToast(null), 3500);
       }
     } catch (e: any) {
@@ -479,7 +494,7 @@ export default function App() {
     // Tự động đồng bộ lên Google Sheet ngay lập tức
     try {
       const cfg = getLocalSheetsConfig();
-      if (cfg.autoSyncOnSave && nextList.length > 0) {
+      if (nextList.length > 0) {
         setSyncToast({ message: `Đang đồng bộ xóa trên Google Sheet...`, type: 'syncing' });
         await pushProductsToGoogleSheet(nextList, cfg.sheetTitle || 'Sản phẩm');
         setSyncToast({ message: `Đã xóa "${deletedProd?.sku || productId}" và cập nhật Google Sheet!`, type: 'success' });
