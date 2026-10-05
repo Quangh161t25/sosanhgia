@@ -15,8 +15,8 @@ export default async function handler(req: any, res: any) {
     if (!Array.isArray(products)) {
       return res.status(400).json({ success: false, error: 'Dữ liệu products không hợp lệ' });
     }
-    const updatedRows = await pushProductsToSheet(products, sheetTitle);
-    return res.status(200).json({ success: true, updatedRows, sheetTitle });
+    const result = await pushProductsToSheet(products, sheetTitle);
+    return res.status(200).json(result);
   } catch (error: any) {
     console.error('Lỗi API /api/sheets/push:', error);
     return res.status(500).json({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Loader2, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import { Loader2, RefreshCw, FileSpreadsheet, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Product } from './types/product';
 import { UserEmployee } from './types/auth';
 import { DEFAULT_EMPLOYEES_SNAPSHOT } from './data/employeesSnapshot';
@@ -151,6 +151,7 @@ export default function App() {
   // 2. Trạng thái tải & đồng bộ dữ liệu Google Sheet
   const [isLoadingSheets, setIsLoadingSheets] = useState(true);
   const [sheetSyncError, setSheetSyncError] = useState<string | null>(null);
+  const [syncToast, setSyncToast] = useState<{ message: string; type: 'syncing' | 'success' | 'error' } | null>(null);
 
   // 3. Danh sách sản phẩm (đồng bộ trực tiếp từ Google Sheet thực tế)
   const [products, setProducts] = useState<Product[]>(() => {
@@ -418,49 +419,74 @@ export default function App() {
     XLSX.writeFile(wb, `Danh_Muc_San_Pham_SoSanhGia_${Date.now()}.xlsx`);
   };
 
+  // Cập nhật danh mục sản phẩm từ bên ngoài (nhập Excel, đồng bộ Sheet modal)
+  const handleUpdateProducts = useCallback((newProducts: Product[]) => {
+    setProducts(newProducts);
+    try {
+      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(newProducts));
+    } catch (e) {
+      console.error('Lỗi lưu LocalStorage:', e);
+    }
+  }, []);
+
   // Lưu sản phẩm từ Form Modal (Thêm mới hoặc Cập nhật)
   const handleSaveProduct = async (updated: Product) => {
-    let nextList: Product[] = [];
-    setProducts(prev => {
-      const index = prev.findIndex(p => p.id === updated.id);
-      if (index >= 0) {
-        const copy = [...prev];
-        copy[index] = updated;
-        nextList = copy;
-      } else {
-        nextList = [updated, ...prev];
-      }
-      return nextList;
-    });
+    // 1. Tính toán danh sách sản phẩm mới đồng bộ
+    const index = products.findIndex(
+      p => p.id === updated.id || (p.sku && updated.sku && p.sku.trim().toUpperCase() === updated.sku.trim().toUpperCase())
+    );
+    const nextList = index >= 0
+      ? products.map((p, i) => (i === index ? updated : p))
+      : [updated, ...products];
 
-    // Tự động đồng bộ lên Google Sheet ngay lập tức
+    setProducts(nextList);
+    try {
+      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(nextList));
+    } catch (e) {
+      console.error('Lỗi lưu LocalStorage:', e);
+    }
+
+    // 2. Tự động đồng bộ trực tiếp lên Google Sheet ngay lập tức
     try {
       const cfg = getLocalSheetsConfig();
       if (cfg.autoSyncOnSave && nextList.length > 0) {
-        await pushProductsToGoogleSheet(nextList, cfg.sheetTitle);
+        setSyncToast({ message: `Đang lưu "${updated.name}" lên Google Sheet...`, type: 'syncing' });
+        await pushProductsToGoogleSheet(nextList, cfg.sheetTitle || 'Sản phẩm');
+        setSyncToast({ message: `Đã lưu & đồng bộ "${updated.sku}" lên Google Sheet thành công!`, type: 'success' });
+        setTimeout(() => setSyncToast(null), 3500);
       }
-    } catch (e) {
-      console.error('Lỗi tự động đồng bộ Google Sheet:', e);
+    } catch (e: any) {
+      console.error('Lỗi tự động đồng bộ Google Sheet khi lưu:', e);
+      setSyncToast({ message: `Lỗi đồng bộ Google Sheet: ${e?.message || 'Không thể kết nối'}`, type: 'error' });
+      setTimeout(() => setSyncToast(null), 6000);
     }
   };
 
   // Xóa sản phẩm
   const handleDeleteProduct = async (productId: string) => {
-    let nextList: Product[] = [];
-    setProducts(prev => {
-      nextList = prev.filter(p => p.id !== productId);
-      return nextList;
-    });
+    const deletedProd = products.find(p => p.id === productId);
+    const nextList = products.filter(p => p.id !== productId);
+    setProducts(nextList);
     setCompareIds(prev => prev.filter(id => id !== productId));
+    try {
+      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(nextList));
+    } catch (e) {
+      console.error('Lỗi lưu LocalStorage:', e);
+    }
 
     // Tự động đồng bộ lên Google Sheet ngay lập tức
     try {
       const cfg = getLocalSheetsConfig();
       if (cfg.autoSyncOnSave && nextList.length > 0) {
-        await pushProductsToGoogleSheet(nextList, cfg.sheetTitle);
+        setSyncToast({ message: `Đang đồng bộ xóa trên Google Sheet...`, type: 'syncing' });
+        await pushProductsToGoogleSheet(nextList, cfg.sheetTitle || 'Sản phẩm');
+        setSyncToast({ message: `Đã xóa "${deletedProd?.sku || productId}" và cập nhật Google Sheet!`, type: 'success' });
+        setTimeout(() => setSyncToast(null), 3500);
       }
-    } catch (e) {
-      console.error('Lỗi tự động đồng bộ Google Sheet:', e);
+    } catch (e: any) {
+      console.error('Lỗi tự động đồng bộ Google Sheet khi xóa:', e);
+      setSyncToast({ message: `Lỗi đồng bộ Google Sheet khi xóa: ${e?.message || 'Không thể kết nối'}`, type: 'error' });
+      setTimeout(() => setSyncToast(null), 6000);
     }
   };
 
@@ -596,7 +622,7 @@ export default function App() {
               onOpenCompare={() => setCurrentTab('compare')}
               onExportCatalog={handleExportCatalog}
               showCostPrice={showCostPrice}
-              onUpdateProducts={setProducts}
+              onUpdateProducts={handleUpdateProducts}
             />
           )}
 
@@ -677,6 +703,24 @@ export default function App() {
         }}
         onSave={handleSaveProduct}
       />
+
+      {/* Toast thông báo đồng bộ Google Sheet thời gian thực */}
+      {syncToast && (
+        <div
+          className={`fixed bottom-6 right-6 z-70 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md transition-all animate-in slide-in-from-bottom-3 duration-200 text-sm font-medium ${
+            syncToast.type === 'syncing'
+              ? 'bg-slate-900/95 text-white border-blue-500/50 shadow-blue-500/10'
+              : syncToast.type === 'success'
+              ? 'bg-emerald-950/95 text-emerald-200 border-emerald-500/50 shadow-emerald-500/20'
+              : 'bg-rose-950/95 text-rose-200 border-rose-500/50 shadow-rose-500/20'
+          }`}
+        >
+          {syncToast.type === 'syncing' && <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />}
+          {syncToast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+          {syncToast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+          <span>{syncToast.message}</span>
+        </div>
+      )}
 
     </div>
   );

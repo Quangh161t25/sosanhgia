@@ -212,7 +212,7 @@ export async function pushProductsToSheet(
   // Xóa nội dung cũ trong sheet đó
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SPREADSHEET_ID,
-    range: `'${targetSheetTitle}'!A1:Z500`,
+    range: `'${targetSheetTitle}'!A:Z`,
   });
 
   // Ghi toàn bộ dữ liệu mới
@@ -354,7 +354,7 @@ export async function pullProductsFromSheet(
   const { sheets } = getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `'${targetSheetTitle}'!A1:Z500`,
+    range: `'${targetSheetTitle}'!A:Z`,
     valueRenderOption: 'UNFORMATTED_VALUE',
   });
 
@@ -827,7 +827,7 @@ export async function aiAnalyzeSheetSpecs(
   const { sheets } = getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `'${sheetTitle}'!A1:Z500`,
+    range: `'${sheetTitle}'!A:Z`,
     valueRenderOption: 'UNFORMATTED_VALUE',
   });
 
@@ -963,7 +963,7 @@ export async function pullEmployeesFromSheet(
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetTitle}'!A1:Z200`,
+      range: `'${sheetTitle}'!A:Z`,
       valueRenderOption: 'UNFORMATTED_VALUE',
     });
 

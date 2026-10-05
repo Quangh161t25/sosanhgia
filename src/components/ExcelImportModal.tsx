@@ -341,6 +341,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           tags,
           notes,
           description,
+          status: 'active',
+          updatedAt: new Date().toISOString().split('T')[0],
         });
       }
 
