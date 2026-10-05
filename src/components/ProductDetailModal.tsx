@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../types/product';
 import { formatVND, calculateFinancials } from '../utils/pricing';
+import {
+  findSimilarProducts,
+  SimilarProductResult,
+} from '../utils/aiProductAdvisor';
 import {
   X,
   ShieldCheck,
@@ -16,6 +20,10 @@ import {
   PanelRightOpen,
   Trash2,
   Edit3,
+  Sparkles,
+  RefreshCw,
+  Loader2,
+  Eye,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -26,6 +34,9 @@ interface ProductDetailModalProps {
   showCostPrice: boolean;
   onEditProduct?: (product: Product) => void;
   onDeleteProduct?: (productId: string) => void;
+  allProducts?: Product[];
+  onSelectProduct?: (product: Product) => void;
+  compareIds?: string[];
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -36,9 +47,45 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   showCostPrice,
   onEditProduct,
   onDeleteProduct,
+  allProducts = [],
+  onSelectProduct,
+  compareIds = [],
 }) => {
   // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
   const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
+
+  // AI Sản phẩm tương tự
+  const [similarProducts, setSimilarProducts] = useState<SimilarProductResult[]>([]);
+  const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
+  const [showSimilarPanel, setShowSimilarPanel] = useState(true);
+
+  // Tự động tìm sản phẩm tương tự khi mở sản phẩm
+  useEffect(() => {
+    if (product && allProducts && allProducts.length > 0) {
+      setIsLoadingSimilar(true);
+      findSimilarProducts(product, allProducts)
+        .then(results => {
+          setSimilarProducts(results);
+        })
+        .catch(err => {
+          console.warn('Lỗi tìm sản phẩm tương tự:', err);
+        })
+        .finally(() => {
+          setIsLoadingSimilar(false);
+        });
+    } else {
+      setSimilarProducts([]);
+    }
+  }, [product?.id, allProducts]);
+
+  const handleRefreshSimilar = () => {
+    if (!product || !allProducts || allProducts.length === 0) return;
+    setIsLoadingSimilar(true);
+    findSimilarProducts(product, allProducts)
+      .then(res => setSimilarProducts(res))
+      .catch(e => console.warn(e))
+      .finally(() => setIsLoadingSimilar(false));
+  };
 
   if (!product) return null;
 
@@ -60,6 +107,173 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         className="fixed inset-0 bg-black/40 backdrop-blur-2xs z-50 transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
+
+      {/* PANEL BÊN TRÁI: SẢN PHẨM TƯƠNG TỰ (AI GỢI Ý ĐỐI CHIẾU) */}
+      {showSimilarPanel && allProducts && allProducts.length > 0 && (
+        <aside
+          style={{ zIndex: 61 }}
+          aria-label="Sản phẩm tương tự AI"
+          className="fixed inset-y-0 left-0 hidden md:flex flex-col w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[420px] bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden"
+        >
+          {/* Header Panel */}
+          <div className="p-3.5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5 leading-none">
+                  Sản phẩm tương tự AI
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 font-mono">
+                    {similarProducts.length}
+                  </span>
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Đối chiếu kho & so sánh cùng phân khúc
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleRefreshSimilar}
+                disabled={isLoadingSimilar}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Quét lại sản phẩm tương tự bằng AI"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSimilar ? 'animate-spin text-blue-400' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSimilarPanel(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Tạm ẩn thanh gợi ý bên trái"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body: Danh sách sản phẩm tương tự */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {isLoadingSimilar ? (
+              <div className="p-8 text-center space-y-2.5">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-400 mx-auto" />
+                <p className="text-xs text-slate-300 font-medium">
+                  AI đang phân tích sản phẩm tương tự...
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Đang quét kho hàng để tìm các mã cùng ngành hàng & phân khúc
+                </p>
+              </div>
+            ) : similarProducts.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 space-y-2">
+                <Package className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-xs">Chưa tìm thấy sản phẩm cùng phân khúc trong kho.</p>
+                <button
+                  type="button"
+                  onClick={handleRefreshSimilar}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-xs font-semibold cursor-pointer"
+                >
+                  Tìm lại
+                </button>
+              </div>
+            ) : (
+              similarProducts.map(({ product: sim, similarityScore, matchReasons }) => {
+                const isItemComparing = compareIds?.includes(sim.id);
+                return (
+                  <div
+                    key={sim.id}
+                    className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2"
+                  >
+                    {/* Hàng trên: Badge điểm & SKU */}
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-500/30">
+                        {sim.sku}
+                      </span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        🔥 {similarityScore}% tương đồng
+                      </span>
+                    </div>
+
+                    {/* Giữa: Ảnh + Tên */}
+                    <div className="flex items-start gap-2">
+                      <div className="w-11 h-11 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                        <img
+                          src={sim.thumbnail}
+                          alt={sim.name}
+                          loading="lazy"
+                          className="max-h-full max-w-full object-contain"
+                          onError={e => {
+                            (e.currentTarget as HTMLImageElement).src =
+                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
+                          {sim.name}
+                        </h5>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] font-mono font-bold text-amber-300">
+                            {formatVND(sim.pricing.retailPrice)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            NPP: {formatVND(sim.pricing.distributorPrice)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lý do tương đồng */}
+                    {matchReasons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {matchReasons.slice(0, 2).map((r, ri) => (
+                          <span
+                            key={ri}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-slate-700/60 text-slate-300 border border-slate-600/40"
+                          >
+                            ✓ {r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Nút tác vụ nhanh */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-700/50">
+                      {onSelectProduct && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectProduct(sim)}
+                          className="py-1 px-1.5 rounded-lg bg-slate-700/70 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                          title="Xem chi tiết sản phẩm này"
+                        >
+                          <Eye className="w-3 h-3 text-slate-400" />
+                          <span>Xem chi tiết</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onToggleCompare(sim)}
+                        className={`py-1 px-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                          isItemComparing
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : 'bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30'
+                        }`}
+                        title="Đưa vào so sánh"
+                      >
+                        <Scale className="w-3 h-3" />
+                        <span>{isItemComparing ? 'Bỏ so sánh' : '+ So sánh'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
+      )}
 
       {/* Ngăn bên Slide-over Drawer */}
       <div
@@ -104,6 +318,28 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {/* Nút bật/tắt panel AI Sản phẩm tương tự */}
+            {allProducts && allProducts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowSimilarPanel(prev => !prev)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs mr-1 ${
+                  showSimilarPanel
+                    ? 'bg-blue-600 text-white shadow-blue-200'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                }`}
+                title="Bật/tắt thanh gợi ý sản phẩm tương tự bên trái màn hình"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">SP tương tự AI</span>
+                {similarProducts.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+                    {similarProducts.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Nhóm nút điều chỉnh bề rộng (Hẹp | Chuẩn | Rộng) */}
             <div
               role="group"

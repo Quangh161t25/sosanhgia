@@ -168,25 +168,27 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
   const [showSimilarPanel, setShowSimilarPanel] = useState(true);
 
-  const handleFindSimilarProducts = async () => {
+  const handleFindSimilarProducts = async (explicitTarget?: Partial<Product>) => {
     if (!allProducts || allProducts.length === 0) return;
     setIsLoadingSimilar(true);
     try {
+      const base = explicitTarget || productToEdit;
       const target: Partial<Product> = {
-        id: productToEdit?.id,
-        sku,
-        name,
-        categoryType,
-        brand,
-        description,
+        id: base?.id,
+        sku: (sku || base?.sku || '').trim(),
+        name: (name || base?.name || '').trim(),
+        categoryType: (categoryType || base?.categoryType || '').trim(),
+        categoryGroup: (categoryGroup || base?.categoryGroup || '').trim(),
+        brand: (brand || base?.brand || '').trim(),
+        description: description || base?.description || '',
         pricing: {
-          costPrice: Number(costPrice) || 0,
-          distributorPrice: Number(distributorPrice) || 0,
-          floorPrice: Number(floorPrice) || 0,
-          retailPrice: Number(retailPrice) || 0,
+          costPrice: Number(costPrice) || base?.pricing?.costPrice || 0,
+          distributorPrice: Number(distributorPrice) || base?.pricing?.distributorPrice || 0,
+          floorPrice: Number(floorPrice) || base?.pricing?.floorPrice || 0,
+          retailPrice: Number(retailPrice) || base?.pricing?.retailPrice || 0,
           currency: 'VND',
         },
-        specifications: specGroups,
+        specifications: specGroups.length > 0 ? specGroups : base?.specifications || [],
       };
       const results = await findSimilarProducts(target, allProducts, apiKey);
       setSimilarProducts(results);
@@ -271,7 +273,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   useEffect(() => {
     if (isOpen && allProducts.length > 0) {
-      handleFindSimilarProducts();
+      handleFindSimilarProducts(productToEdit || undefined);
     }
   }, [isOpen, productToEdit?.id]);
 
@@ -457,7 +459,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <aside
           style={{ zIndex: 61 }}
           aria-label="Sản phẩm tương tự AI"
-          className="fixed inset-y-0 left-0 hidden lg:flex flex-col w-[350px] xl:w-[380px] 2xl:w-[420px] bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden"
+          className="fixed inset-y-0 left-0 hidden md:flex flex-col w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[420px] bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden"
         >
           {/* Header Panel */}
           <div className="p-3.5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between shrink-0">

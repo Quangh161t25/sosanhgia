@@ -728,6 +728,9 @@ export default function App() {
         showCostPrice={showCostPrice}
         onEditProduct={prod => handleEditProductFromMatrix(prod, false)}
         onDeleteProduct={handleDeleteProduct}
+        allProducts={products}
+        onSelectProduct={prod => setDetailProduct(prod)}
+        compareIds={compareIds}
       />
 
       {/* Product Add / Edit Modal */}
