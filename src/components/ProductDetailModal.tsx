@@ -217,10 +217,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         </h5>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[11px] font-mono font-bold text-amber-300">
-                            {formatVND(sim.pricing.retailPrice)}
+                            {formatVND(sim.pricing?.retailPrice || 0)}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            NPP: {formatVND(sim.pricing.distributorPrice)}
+                            NPP: {formatVND(sim.pricing?.distributorPrice || 0)}
                           </span>
                         </div>
                       </div>

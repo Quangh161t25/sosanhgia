@@ -29,8 +29,12 @@ export function formatCompactVND(amount: number): string {
 /**
  * Tính toán các chỉ số tài chính và biên lợi nhuận
  */
-export function calculateFinancials(pricing: Product['pricing']) {
-  const { costPrice, distributorPrice, floorPrice, retailPrice } = pricing;
+export function calculateFinancials(pricing?: Partial<Product['pricing']> | null) {
+  const safePricing = pricing || {};
+  const costPrice = Number(safePricing.costPrice) || 0;
+  const distributorPrice = Number(safePricing.distributorPrice) || 0;
+  const floorPrice = Number(safePricing.floorPrice) || 0;
+  const retailPrice = Number(safePricing.retailPrice) || 0;
 
   // Lợi nhuận gộp = (Giá bán lẻ thương mại - Giá NPP) / Giá bán lẻ x 100%
   // Ví dụ: (830.000 - 455.000) / 830.000 * 100% = 45.2%

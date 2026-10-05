@@ -31,6 +31,7 @@ import {
   ArrowRight,
   CheckCheck,
   Eye,
+  Scale,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatVND, calculateFinancials } from '../utils/pricing';
@@ -52,7 +53,7 @@ interface ProductFormModalProps {
   initialOpenAiSpec?: boolean;
   onOpenExcelImport?: () => void;
   allProducts?: Product[];
-  onAddToCompare?: (productId: string) => void;
+  onAddToCompare?: (product: Product) => void;
 }
 
 const SAMPLE_IMAGES = [
@@ -527,7 +528,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             ) : (
               similarProducts.map(({ product: sim, similarityScore, matchReasons }) => {
-                const f = calculateFinancials(sim.pricing);
+                const f = calculateFinancials(
+                  sim.pricing || { costPrice: 0, distributorPrice: 0, floorPrice: 0, retailPrice: 0, currency: 'VND' }
+                );
                 return (
                   <div
                     key={sim.id}
@@ -581,7 +584,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-slate-700/60">
                       <div>
                         <span className="text-slate-400 block">Giá NPP:</span>
-                        <span className="font-mono font-bold text-blue-300">{formatVND(sim.pricing.distributorPrice)}</span>
+                        <span className="font-mono font-bold text-blue-300">{formatVND(sim.pricing?.distributorPrice || 0)}</span>
                       </div>
                       <div className="text-right">
                         <span className="text-slate-400 block">LN gộp:</span>
@@ -614,7 +617,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {onAddToCompare && (
                       <button
                         type="button"
-                        onClick={() => onAddToCompare(sim.id)}
+                        onClick={() => onAddToCompare(sim)}
                         className="w-full py-1 px-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors border border-emerald-500/30 cursor-pointer"
                         title="Đưa sản phẩm tương tự này vào danh sách so sánh đối chiếu"
                       >

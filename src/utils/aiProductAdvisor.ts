@@ -52,9 +52,12 @@ export async function findSimilarProducts(
 ): Promise<SimilarProductResult[]> {
   if (!catalog || catalog.length === 0) return [];
 
+  const targetSku = String(target.sku || '').trim().toUpperCase();
   const candidates = catalog.filter(p => {
+    if (!p) return false;
     if (target.id && p.id === target.id) return false;
-    if (target.sku && p.sku && p.sku.trim().toUpperCase() === target.sku.trim().toUpperCase()) return false;
+    const pSku = String(p.sku || p.id || '').trim().toUpperCase();
+    if (targetSku && pSku && targetSku === pSku) return false;
     return true;
   });
 
@@ -67,13 +70,15 @@ export async function findSimilarProducts(
 
   // Lấy danh sách thông số của target để so khớp
   const targetSpecValues = new Set<string>();
-  if (target.specifications) {
+  if (Array.isArray(target.specifications)) {
     target.specifications.forEach(g => {
-      g.items.forEach(i => {
-        if (i.value && i.value.trim().length > 1) {
-          targetSpecValues.add(i.value.trim().toLowerCase());
-        }
-      });
+      if (Array.isArray(g?.items)) {
+        g.items.forEach(i => {
+          if (i?.value && String(i.value).trim().length > 1) {
+            targetSpecValues.add(String(i.value).trim().toLowerCase());
+          }
+        });
+      }
     });
   }
 
@@ -96,8 +101,9 @@ export async function findSimilarProducts(
     }
 
     // 3. Phân khúc giá tương đồng (Trọng số: 25 điểm)
-    if (targetRetail > 0 && p.pricing.retailPrice > 0) {
-      const priceDiff = Math.abs(p.pricing.retailPrice - targetRetail);
+    const pRetail = p.pricing?.retailPrice || 0;
+    if (targetRetail > 0 && pRetail > 0) {
+      const priceDiff = Math.abs(pRetail - targetRetail);
       const ratio = priceDiff / targetRetail;
       if (ratio <= 0.15) {
         score += 25;
@@ -111,7 +117,7 @@ export async function findSimilarProducts(
     }
 
     // 4. Trùng từ khóa tên & mô tả (Trọng số: 15 điểm)
-    const pTokens = tokenize(`${p.name} ${p.description || ''}`);
+    const pTokens = tokenize(`${p.name || ''} ${p.description || ''}`);
     let tokenOverlap = 0;
     targetTokens.forEach(t => {
       if (pTokens.has(t)) tokenOverlap++;
@@ -125,13 +131,17 @@ export async function findSimilarProducts(
 
     // 5. Trùng giá trị thông số kỹ thuật (Dung tích, công suất, chất liệu...) (Trọng số: 15 điểm)
     let specOverlap = 0;
-    p.specifications.forEach(g => {
-      g.items.forEach(i => {
-        if (i.value && targetSpecValues.has(i.value.trim().toLowerCase())) {
-          specOverlap++;
+    if (Array.isArray(p.specifications)) {
+      p.specifications.forEach(g => {
+        if (Array.isArray(g?.items)) {
+          g.items.forEach(i => {
+            if (i?.value && targetSpecValues.has(String(i.value).trim().toLowerCase())) {
+              specOverlap++;
+            }
+          });
         }
       });
-    });
+    }
     if (specOverlap > 0) {
       score += Math.min(specOverlap * 5, 15);
       reasons.push(`Trùng ${specOverlap} chỉ số kỹ thuật`);
@@ -263,9 +273,13 @@ export async function analyzeComparisonMatrix(
   let specsWinner = products[0];
   products.forEach(p => {
     let specCount = 0;
-    p.specifications.forEach(g => {
-      specCount += g.items.length;
-    });
+    if (Array.isArray(p.specifications)) {
+      p.specifications.forEach(g => {
+        if (Array.isArray(g?.items)) {
+          specCount += g.items.length;
+        }
+      });
+    }
     // Cộng điểm cho thời hạn bảo hành dài hơn
     specCount += (p.warrantyMonths || 12) >= 24 ? 3 : 0;
     if (specCount > maxSpecsCount) {
