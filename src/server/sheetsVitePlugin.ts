@@ -6,6 +6,8 @@ import {
   pullProductsFromSheet,
   aiAnalyzeSheetSpecs,
   pullEmployeesFromSheet,
+  pullSettingsFromSheet,
+  pushSettingsToSheet,
 } from './googleSheetsService';
 
 function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
@@ -97,6 +99,25 @@ export function googleSheetsVitePlugin(): Plugin {
             const sheetTitle = body.sheetTitle || 'Sản phẩm';
             const apiKey = body.apiKey;
             const result = await aiAnalyzeSheetSpecs(sheetTitle, apiKey);
+            return sendJson(res, result);
+          }
+
+          // 6. GET /api/sheets/settings
+          if (req.method === 'GET' && pathname === '/api/sheets/settings') {
+            const parsedUrl = new URL(url, 'http://localhost');
+            const sheetTitle = parsedUrl.searchParams.get('sheetTitle') || 'CAI_DAT';
+            const settings = await pullSettingsFromSheet(sheetTitle);
+            return sendJson(res, { success: true, settings });
+          }
+
+          // 7. POST /api/sheets/settings
+          if (req.method === 'POST' && pathname === '/api/sheets/settings') {
+            const body = await parseJsonBody(req);
+            const { settings, sheetTitle = 'CAI_DAT' } = body;
+            if (!settings || typeof settings !== 'object') {
+              return sendError(res, 'settings phải là một đối tượng key-value', 400);
+            }
+            const result = await pushSettingsToSheet(settings, sheetTitle);
             return sendJson(res, result);
           }
 

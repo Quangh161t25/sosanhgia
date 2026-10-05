@@ -889,6 +889,14 @@ export async function aiAnalyzeSheetSpecs(
   const updateValues: { range: string; values: string[][] }[] = [];
   const updatedProducts: Product[] = [];
 
+  let activeApiKey = customApiKey;
+  if (!activeApiKey) {
+    try {
+      const sheetSettings = await pullSettingsFromSheet();
+      activeApiKey = sheetSettings.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    } catch (_) {}
+  }
+
   for (let i = 1; i < rawRows.length; i++) {
     const row = rawRows[i];
     if (!row || row.length === 0 || !row.some((c: any) => Boolean(c))) continue;
@@ -903,7 +911,7 @@ export async function aiAnalyzeSheetSpecs(
     }
 
     // Phân tích thông số từ mô tả của chính dòng này
-    const specGroups = await parseSpecsFromRawText(rawDesc, customApiKey);
+    const specGroups = await parseSpecsFromRawText(rawDesc, activeApiKey);
     const specsText = formatSpecsToText(specGroups);
 
     const specsColLetter = getColumnLetter(specsColIdx);
@@ -1018,4 +1026,154 @@ export async function pullEmployeesFromSheet(
     throw error;
   }
 }
+
+// ==========================================
+// QUẢN LÝ CẤU HÌNH & API KEY (SHEET CAI_DAT)
+// ==========================================
+
+export const DEFAULT_SETTINGS_SHEET_TITLE = 'CAI_DAT';
+
+/**
+ * Đọc toàn bộ cấu hình từ sheet CAI_DAT
+ */
+export async function pullSettingsFromSheet(
+  sheetTitle: string = DEFAULT_SETTINGS_SHEET_TITLE
+): Promise<Record<string, string>> {
+  const { sheets } = getSheetsClient();
+  try {
+    await ensureSheetExists(sheetTitle);
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetTitle}'!A:E`,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length <= 1) {
+      return {};
+    }
+
+    const settings: Record<string, string> = {};
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+      const key = String(row[0] || '').trim().toUpperCase();
+      const val = String(row[2] !== undefined ? row[2] : '').trim();
+      if (key) {
+        settings[key] = val;
+      }
+    }
+    return settings;
+  } catch (error: any) {
+    console.error(`Lỗi khi đọc sheet ${sheetTitle}:`, error);
+    return {};
+  }
+}
+
+/**
+ * Lưu hoặc cập nhật cấu hình vào sheet CAI_DAT (bao gồm GEMINI_API_KEY)
+ */
+export async function pushSettingsToSheet(
+  settings: Record<string, string>,
+  sheetTitle: string = DEFAULT_SETTINGS_SHEET_TITLE
+): Promise<{ success: boolean; updatedRows: number }> {
+  const { sheets } = getSheetsClient();
+  const sheetId = await ensureSheetExists(sheetTitle);
+
+  // Lấy các cấu hình hiện có và merge
+  const current = await pullSettingsFromSheet(sheetTitle);
+  const merged: Record<string, string> = { ...current };
+  for (const [k, v] of Object.entries(settings)) {
+    merged[k.trim().toUpperCase()] = String(v ?? '').trim();
+  }
+
+  const metaDefs: Record<string, { label: string; desc: string }> = {
+    GEMINI_API_KEY: {
+      label: 'Khóa Google Gemini AI API Key',
+      desc: 'Khóa API Google Gemini AI dùng để bóc tách thông số kỹ thuật tự động',
+    },
+    AI_MODEL: {
+      label: 'Mô hình AI mặc định',
+      desc: 'Model Google AI được sử dụng phân tích (ví dụ: gemini-2.5-flash)',
+    },
+    SHEET_NAME_PRODUCTS: {
+      label: 'Tab Danh mục Sản phẩm',
+      desc: 'Tên tab chứa bảng dữ liệu sản phẩm trong Google Sheet',
+    },
+    AUTO_SYNC: {
+      label: 'Tự động đồng bộ',
+      desc: 'Tự động đẩy dữ liệu lên Google Sheet khi thêm hoặc chỉnh sửa sản phẩm',
+    },
+  };
+
+  const rows: (string | number)[][] = [
+    ['Mã cấu hình', 'Tên cấu hình', 'Giá trị cấu hình', 'Mô tả / Hướng dẫn', 'Ngày cập nhật'],
+  ];
+
+  const today = new Date().toISOString().split('T')[0];
+  const allKeys = Array.from(new Set([...Object.keys(metaDefs), ...Object.keys(merged)]));
+
+  for (const k of allKeys) {
+    const key = k.trim().toUpperCase();
+    const val = merged[key] !== undefined ? merged[key] : '';
+    const def = metaDefs[key] || { label: key, desc: 'Cấu hình hệ thống' };
+    rows.push([key, def.label, val, def.desc, today]);
+  }
+
+  // Ghi đè vào sheet CAI_DAT
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `'${sheetTitle}'!A1`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: rows },
+  });
+
+  // Định dạng Header chuyên nghiệp
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId,
+                gridProperties: { frozenRowCount: 1 },
+              },
+              fields: 'gridProperties.frozenRowCount',
+            },
+          },
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: 0,
+                endRowIndex: 1,
+                startColumnIndex: 0,
+                endColumnIndex: 5,
+              },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: { red: 0.06, green: 0.09, blue: 0.16 },
+                  textFormat: {
+                    foregroundColor: { red: 1, green: 1, blue: 1 },
+                    bold: true,
+                    fontSize: 10,
+                  },
+                  horizontalAlignment: 'CENTER',
+                },
+              },
+              fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
+            },
+          },
+        ],
+      },
+    });
+  } catch (e) {
+    // Ignore formatting error
+  }
+
+  return { success: true, updatedRows: rows.length - 1 };
+}
+
 

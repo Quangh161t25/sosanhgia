@@ -23,6 +23,7 @@ import {
   pullProductsFromGoogleSheet,
   pullEmployeesFromGoogleSheet,
 } from './utils/googleSheetsApi';
+import { syncGeminiKeyFromSheet } from './utils/aiSpecParser';
 import { SHEET_PRODUCTS_SNAPSHOT } from './data/sheetProductsSnapshot';
 
 const STORAGE_KEY_PRODUCTS = 'procompare_products_v2';
@@ -91,8 +92,8 @@ export default function App() {
     } catch (e) {
       console.error('Lỗi đọc tài khoản đăng nhập:', e);
     }
-    // Mặc định khởi tạo tài khoản Lê Minh Công (Tổng Giám Đốc)
-    return DEFAULT_EMPLOYEES_SNAPSHOT[0];
+    // Không tự động đăng nhập nếu chưa có phiên hợp lệ (yêu cầu đăng nhập từ Google Sheet)
+    return null;
   });
 
   const [employees, setEmployees] = useState<UserEmployee[]>(DEFAULT_EMPLOYEES_SNAPSHOT);
@@ -133,6 +134,7 @@ export default function App() {
 
   useEffect(() => {
     handleSyncEmployees();
+    syncGeminiKeyFromSheet().catch(() => {});
   }, [handleSyncEmployees]);
 
   const handleLogout = useCallback(() => {

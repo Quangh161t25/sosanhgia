@@ -1,4 +1,5 @@
 import { SpecGroup, SpecItem, Product } from '../types/product';
+import { fetchSheetSettings, saveSheetSettings } from './googleSheetsApi';
 
 const GEMINI_API_KEY_STORAGE = 'procompare_gemini_api_key';
 
@@ -26,6 +27,38 @@ export function saveGeminiKey(key: string): void {
     }
   } catch (e) {
     console.error('Không thể lưu Gemini API key:', e);
+  }
+}
+
+/**
+ * Tải Gemini API Key từ sheet CAI_DAT trên Google Sheet về máy
+ */
+export async function syncGeminiKeyFromSheet(): Promise<string> {
+  try {
+    const settings = await fetchSheetSettings();
+    if (settings && settings.GEMINI_API_KEY && settings.GEMINI_API_KEY.trim()) {
+      const key = settings.GEMINI_API_KEY.trim();
+      saveGeminiKey(key);
+      return key;
+    }
+  } catch (e) {
+    console.warn('Lỗi đọc API Key từ sheet CAI_DAT:', e);
+  }
+  return getSavedGeminiKey();
+}
+
+/**
+ * Lưu Gemini API Key vào cả trình duyệt và trực tiếp lên Google Sheet (sheet CAI_DAT)
+ */
+export async function saveGeminiKeyToSheet(key: string): Promise<boolean> {
+  const cleanKey = key.trim();
+  saveGeminiKey(cleanKey);
+  try {
+    await saveSheetSettings({ GEMINI_API_KEY: cleanKey });
+    return true;
+  } catch (e) {
+    console.error('Lỗi lưu API Key lên sheet CAI_DAT:', e);
+    throw e;
   }
 }
 

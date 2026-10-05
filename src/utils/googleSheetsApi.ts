@@ -206,3 +206,53 @@ export async function pullEmployeesFromGoogleSheet(): Promise<UserEmployee[]> {
   }
   return DEFAULT_EMPLOYEES_SNAPSHOT;
 }
+
+/**
+ * Tải cài đặt hệ thống (bao gồm Gemini API Key) từ sheet CAI_DAT
+ */
+export async function fetchSheetSettings(
+  sheetTitle: string = 'CAI_DAT'
+): Promise<Record<string, string>> {
+  try {
+    const res = await fetchWithTimeout(
+      `/api/sheets/settings?sheetTitle=${encodeURIComponent(sheetTitle)}`,
+      {},
+      10000
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.settings || {};
+  } catch (err) {
+    console.warn('Không thể tải cấu hình từ sheet CAI_DAT:', err);
+    return {};
+  }
+}
+
+/**
+ * Lưu cài đặt hệ thống (bao gồm Gemini API Key) vào sheet CAI_DAT
+ */
+export async function saveSheetSettings(
+  settings: Record<string, string>,
+  sheetTitle: string = 'CAI_DAT'
+): Promise<{ success: boolean; updatedRows?: number }> {
+  const res = await fetchWithTimeout(
+    '/api/sheets/settings',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings, sheetTitle }),
+    },
+    15000
+  );
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Máy chủ Google Sheet phản hồi không hợp lệ (HTTP ${res.status}).`);
+  }
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Lỗi lưu cấu hình vào sheet CAI_DAT');
+  }
+  return data;
+}
