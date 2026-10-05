@@ -104,22 +104,32 @@ export default function App() {
       const list = await pullEmployeesFromGoogleSheet();
       if (list && list.length > 0) {
         setEmployees(list);
-        if (currentUser) {
+        setCurrentUser(prevUser => {
+          if (!prevUser) return null;
           const updated = list.find(
-            e => e.taiKhoan.toLowerCase() === currentUser.taiKhoan.toLowerCase()
+            e => e.taiKhoan.toLowerCase() === prevUser.taiKhoan.toLowerCase()
           );
-          if (updated) {
-            setCurrentUser(updated);
-            localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(updated));
+          if (!updated) return prevUser;
+          if (
+            updated.hoTen === prevUser.hoTen &&
+            updated.quyen === prevUser.quyen &&
+            updated.matKhau === prevUser.matKhau &&
+            updated.anh === prevUser.anh
+          ) {
+            return prevUser;
           }
-        }
+          try {
+            localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
       }
     } catch (e) {
       console.error('Lỗi tải danh sách nhân viên từ Google Sheet:', e);
     } finally {
       setIsLoadingEmployees(false);
     }
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     handleSyncEmployees();
@@ -270,7 +280,7 @@ export default function App() {
       const newUrlStr = url.pathname + url.search;
       const currentUrlStr = window.location.pathname + window.location.search;
       if (newUrlStr !== currentUrlStr) {
-        window.history.pushState({ tab: currentTab }, '', newUrlStr);
+        window.history.replaceState({ tab: currentTab }, '', newUrlStr);
       }
     } catch (e) {
       // Ignore in restricted environments

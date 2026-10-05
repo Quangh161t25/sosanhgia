@@ -66,11 +66,27 @@ export function saveLocalSheetsConfig(config: Partial<SheetsConfig>) {
   }
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err: any) {
+    clearTimeout(id);
+    if (err.name === 'AbortError') {
+      throw new Error(`Quá thời gian chờ phản hồi (${timeoutMs / 1000}s). Vui lòng kiểm tra lại mạng.`);
+    }
+    throw err;
+  }
+}
+
 /**
  * Lấy thông tin trạng thái bảng tính Google Sheet
  */
 export async function fetchSpreadsheetInfo(): Promise<SheetInfoResponse> {
-  const res = await fetch('/api/sheets/info');
+  const res = await fetchWithTimeout('/api/sheets/info', {}, 10000);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `HTTP ${res.status}: Lỗi kết nối Google Sheet`);
@@ -85,11 +101,11 @@ export async function pushProductsToGoogleSheet(
   products: Product[],
   sheetTitle: string = 'Sản phẩm'
 ): Promise<SyncPushResponse> {
-  const res = await fetch('/api/sheets/push', {
+  const res = await fetchWithTimeout('/api/sheets/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ products, sheetTitle }),
-  });
+  }, 25000);
 
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -117,7 +133,7 @@ export async function pushProductsToGoogleSheet(
 export async function pullProductsFromGoogleSheet(
   sheetTitle: string = 'Sản phẩm'
 ): Promise<Product[]> {
-  const res = await fetch(`/api/sheets/products?sheetTitle=${encodeURIComponent(sheetTitle)}`);
+  const res = await fetchWithTimeout(`/api/sheets/products?sheetTitle=${encodeURIComponent(sheetTitle)}`, {}, 15000);
   
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -177,7 +193,7 @@ export async function aiAnalyzeSheetSpecsApi(
  */
 export async function pullEmployeesFromGoogleSheet(): Promise<UserEmployee[]> {
   try {
-    const res = await fetch('/api/sheets/employees');
+    const res = await fetchWithTimeout('/api/sheets/employees', {}, 10000);
     if (!res.ok) {
       return DEFAULT_EMPLOYEES_SNAPSHOT;
     }

@@ -86,6 +86,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedType, setSelectedType] = useState('');
 
@@ -203,7 +204,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Danh mục nhóm và loại duy nhất
+  // Danh sách Thương hiệu, Nhóm và Loại duy nhất
+  const brands = useMemo(() => {
+    const list = products
+      .map(p => p.brand?.trim())
+      .filter((b): b is string => Boolean(b && b.length > 0));
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [products]);
+
   const categoryGroups = useMemo(() => {
     return Array.from(new Set(products.map(p => p.categoryGroup))).filter(Boolean);
   }, [products]);
@@ -231,12 +239,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         }
       }
 
+      if (selectedBrand && (!p.brand || p.brand.trim().toLowerCase() !== selectedBrand.trim().toLowerCase())) return false;
       if (selectedGroup && p.categoryGroup !== selectedGroup) return false;
       if (selectedType && p.categoryType !== selectedType) return false;
 
       return true;
     });
-  }, [products, searchQuery, selectedGroup, selectedType]);
+  }, [products, searchQuery, selectedBrand, selectedGroup, selectedType]);
 
   // TÍCH CHỌN HÀNG LOẠT (HỘP KIỂM CHO PHÉP CHỌN HẾT)
   const isAllSelected =
@@ -483,6 +492,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               />
             </div>
 
+            {/* Bộ lọc Thương hiệu */}
+            <select
+              value={selectedBrand}
+              onChange={e => setSelectedBrand(e.target.value)}
+              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
+            >
+              <option value="">Tất cả Thương hiệu</option>
+              {brands.map((b, i) => (
+                <option key={i} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+
             {/* Bộ lọc Nhóm */}
             <select
               value={selectedGroup}
@@ -512,11 +535,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </select>
 
             {/* Nút reset lọc */}
-            {(searchQuery || selectedGroup || selectedType) && (
+            {(searchQuery || selectedBrand || selectedGroup || selectedType) && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
+                  setSelectedBrand('');
                   setSelectedGroup('');
                   setSelectedType('');
                 }}
