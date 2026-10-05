@@ -256,7 +256,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </h4>
                 <span className="text-xs font-mono font-bold text-emerald-600 flex items-center gap-1">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  NPP: +{financials.nppMarginPercent}% ({formatVND(financials.nppGross)})
+                  LN gộp: +{financials.grossMarginPercent}% ({formatVND(financials.grossProfit)})
                 </span>
               </div>
 

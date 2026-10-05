@@ -149,7 +149,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span>Bảng 4 tầng giá</span>
               <span className="text-emerald-700 font-semibold font-mono flex items-center gap-0.5">
                 <TrendingUp className="w-3 h-3" />
-                NPP +{financials.nppMarginPercent}%
+                LN gộp +{financials.nppMarginPercent}%
               </span>
             </div>
 

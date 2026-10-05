@@ -32,25 +32,29 @@ export function formatCompactVND(amount: number): string {
 export function calculateFinancials(pricing: Product['pricing']) {
   const { costPrice, distributorPrice, floorPrice, retailPrice } = pricing;
 
-  // Lợi nhuận gộp NPP (Đại lý)
-  const nppGross = distributorPrice - costPrice;
-  const nppMarginPercent = distributorPrice > 0 ? (nppGross / distributorPrice) * 100 : 0;
+  // Lợi nhuận gộp = (Giá bán lẻ thương mại - Giá NPP) / Giá bán lẻ x 100%
+  // Ví dụ: (830.000 - 455.000) / 830.000 * 100% = 45.2%
+  const grossProfit = retailPrice - distributorPrice;
+  const grossMarginPercent = retailPrice > 0 ? (grossProfit / retailPrice) * 100 : 0;
+  const roundedGrossMargin = Math.round(grossMarginPercent * 10) / 10;
 
-  // Lợi nhuận bán lẻ thương mại (tính từ giá nhập)
+  // Lợi nhuận bán lẻ thương mại (tính từ giá nhập gốc nếu có)
   const retailGross = retailPrice - costPrice;
   const retailMarginPercent = retailPrice > 0 ? (retailGross / retailPrice) * 100 : 0;
 
-  // Chênh lệch giữa giá thương mại và giá sàn (biên độ đàm phán tối đa của sale)
+  // Chênh lệch giữa giá thương mại và giá sàn
   const discountBuffer = retailPrice - floorPrice;
   const discountBufferPercent = retailPrice > 0 ? (discountBuffer / retailPrice) * 100 : 0;
 
-  // Chênh lệch giữa Giá sàn và Giá NPP (mức bảo vệ đại lý)
+  // Chênh lệch giữa Giá sàn và Giá NPP
   const floorOverNpp = floorPrice - distributorPrice;
   const floorOverNppPercent = distributorPrice > 0 ? (floorOverNpp / distributorPrice) * 100 : 0;
 
   return {
-    nppGross,
-    nppMarginPercent: Math.round(nppMarginPercent * 10) / 10,
+    grossProfit,
+    grossMarginPercent: roundedGrossMargin,
+    nppGross: grossProfit, // Tương thích ngược: Lợi nhuận gộp theo giá NPP
+    nppMarginPercent: roundedGrossMargin,
     retailGross,
     retailMarginPercent: Math.round(retailMarginPercent * 10) / 10,
     discountBuffer,

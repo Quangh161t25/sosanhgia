@@ -32,6 +32,8 @@ import {
   CheckCircle2,
   HelpCircle,
   Edit3,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 
 interface ComparisonMatrixProps {
@@ -65,10 +67,12 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showAddSelector, setShowAddSelector] = useState(false);
 
-  // 2. Tùy chọn hiển thị không gian & ảnh
+  // 2. Tùy chọn hiển thị không gian, ảnh & ghim đầu cột
   const [showImages, setShowImages] = useState(true);
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [zoomProduct, setZoomProduct] = useState<Product | null>(null);
+  const [isStickyHeader, setIsStickyHeader] = useState(true);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // 3. Thu gọn từng khối chính
   const [collapsePricing, setCollapsePricing] = useState(false);
@@ -136,8 +140,8 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
     rows.push(['3. Giá sàn (VND)', ...products.map(p => p.pricing.floorPrice.toString())]);
     rows.push(['4. Giá thương mại (VND)', ...products.map(p => p.pricing.retailPrice.toString())]);
     rows.push([
-      '% Lợi nhuận NPP',
-      ...products.map(p => `${calculateFinancials(p.pricing).nppMarginPercent}%`),
+      '% Lợi nhuận gộp',
+      ...products.map(p => `${calculateFinancials(p.pricing).grossMarginPercent}%`),
     ]);
 
     // Mô tả sản phẩm
@@ -370,6 +374,31 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
               <span className="hidden sm:inline">{showImages ? 'Ẩn ảnh' : 'Hiện ảnh'}</span>
             </button>
 
+            {/* Nút Bật/Tắt Ghim cố định đầu cột khi cuộn */}
+            <button
+              type="button"
+              onClick={() => setIsStickyHeader(prev => !prev)}
+              title={
+                isStickyHeader
+                  ? 'Đang ghim đầu cột (Tự thu gọn khi cuộn). Nhấn để thả trôi tự do.'
+                  : 'Đang thả trôi đầu cột. Nhấn để ghim cố định khi cuộn.'
+              }
+              className={`p-1.5 rounded-xl border text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                isStickyHeader
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold shadow-2xs'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {isStickyHeader ? (
+                <Pin className="w-3.5 h-3.5 text-blue-600" />
+              ) : (
+                <PinOff className="w-3.5 h-3.5 text-slate-500" />
+              )}
+              <span className="hidden sm:inline">
+                {isStickyHeader ? 'Ghim đầu cột' : 'Bỏ ghim'}
+              </span>
+            </button>
+
             {/* Chuyển đổi mật độ dòng (Thoáng / Gọn) */}
             <button
               type="button"
@@ -490,7 +519,15 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
         {/* ========================================================= */}
         {/* 2. MA TRẬN SO SÁNH (BẢNG THÔNG TIN RÕ RÀNG, ẢNH GỌN GÀNG) */}
         {/* ========================================================= */}
-        <div className="flex-1 overflow-auto bg-slate-50/50">
+        <div 
+          className="flex-1 overflow-auto bg-slate-50/50"
+          onScroll={e => {
+            const scrolled = e.currentTarget.scrollTop > 70;
+            if (scrolled !== isScrolled) {
+              setIsScrolled(scrolled);
+            }
+          }}
+        >
           <table className="border-collapse text-left min-w-full">
             {/* Cột 0: Chỉ mục thuộc tính cố định chiều rộng; Các cột sản phẩm cố định ~280px-320px, không bị dãn bung màn hình */}
             <colgroup>
@@ -501,102 +538,107 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
             </colgroup>
 
             {/* ----------------------------------------------------- */}
-            {/* STICKY HEADER: THẺ SẢN PHẨM GỌN GÀNG (CHIỀU CAO HỢP LÝ) */}
+            {/* STICKY HEADER: TỰ CO GỌN KHI CUỘN HOẶC THẢ TRÔI TUỲ CHỌN */}
             {/* ----------------------------------------------------- */}
-            <thead className="sticky top-0 z-20 bg-white shadow-xs">
-              <tr className="border-b border-slate-200">
-                {/* Cột 0: Tiêu đề góc trái */}
-                <th className="sticky left-0 z-20 bg-white p-3.5 border-r border-slate-200 align-top">
-                  <div className="flex flex-col justify-between h-full space-y-2">
-                    <div>
-                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 block">
-                        CHỈ MỤC SO SÁNH
-                      </span>
-                      <p className="text-xs font-semibold text-slate-700 mt-1 leading-snug">
-                        Đối chiếu chi tiết 4 tầng giá & từng thông số
-                      </p>
-                    </div>
-
-                    {benchmarkProduct ? (
-                      <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 leading-tight">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold flex items-center gap-1">
-                            <Target className="w-3 h-3 text-blue-600" /> Mốc: {benchmarkProduct.sku}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setBenchmarkId('')}
-                            className="text-blue-600 hover:text-red-600 font-bold"
-                            title="Xóa mốc đối chiếu"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <span className="text-[10px] text-blue-700 mt-0.5 block">
-                          Các cột bên cạnh hiển thị mức chênh lệch (+ / -)
+            <thead
+              className={`${
+                isStickyHeader ? 'sticky top-0 z-20 shadow-xs' : 'relative z-10'
+              } bg-white transition-all duration-150`}
+            >
+              {isStickyHeader && isScrolled ? (
+                /* === CHẾ ĐỘ THU GỌN MINI KHI CUỘN XUỐNG (TIẾT KIỆM 85% DIỆN TÍCH) === */
+                <tr className="border-b border-slate-200 bg-white/95 backdrop-blur-xs">
+                  {/* Cột 0: Chỉ mục */}
+                  <th className="sticky left-0 z-20 bg-white/95 backdrop-blur-xs px-3 py-2 border-r border-slate-200 align-middle">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Scale className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          Chỉ mục ({products.length})
                         </span>
                       </div>
-                    ) : (
-                      <div className="text-[11px] text-slate-400 italic">
-                        Chọn nút "Làm mốc" ở sản phẩm để tính chênh lệch giá & cấu hình.
-                      </div>
-                    )}
-                  </div>
-                </th>
+                      {benchmarkProduct && (
+                        <span
+                          className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded truncate max-w-[85px]"
+                          title={`Mốc chuẩn: ${benchmarkProduct.sku}`}
+                        >
+                          Mốc: {benchmarkProduct.sku}
+                        </span>
+                      )}
+                    </div>
+                  </th>
 
-                {/* Các cột sản phẩm */}
-                {products.map((product, idx) => {
-                  const isBenchmark = product.id === benchmarkId;
-                  const financials = calculateFinancials(product.pricing);
-
-                  return (
-                    <th
-                      key={product.id}
-                      className={`p-3 border-r border-slate-200 align-top transition-colors ${
-                        isBenchmark
-                          ? 'bg-blue-50/40 ring-2 ring-blue-500/20'
-                          : 'bg-white'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2">
-                        {/* Hàng nút tác vụ: Chuyển vị trí cột, Làm mốc, Xóa */}
-                        <div className="flex items-center justify-between text-slate-400 text-xs">
-                          <div className="flex items-center gap-0.5">
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => handleMoveColumn(idx, 'left')}
-                              className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
-                              title="Chuyển cột sang trái"
-                            >
-                              <ArrowLeft className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === products.length - 1}
-                              onClick={() => handleMoveColumn(idx, 'right')}
-                              className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
-                              title="Chuyển cột sang phải"
-                            >
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
+                  {/* Các cột sản phẩm mini */}
+                  {products.map(product => {
+                    const isBenchmark = product.id === benchmarkId;
+                    return (
+                      <th
+                        key={product.id}
+                        className={`px-3 py-2 border-r border-slate-200 align-middle transition-colors ${
+                          isBenchmark
+                            ? 'bg-blue-50/80 ring-1 ring-blue-500/25'
+                            : 'bg-white/95 backdrop-blur-xs'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Khối bên trái: Ảnh mini + SKU + Tên ngắn gọn */}
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {showImages && (
+                              <div
+                                onClick={() => setZoomProduct(product)}
+                                className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:border-blue-400 shadow-2xs"
+                                title="Nhấn để xem ảnh phóng to"
+                              >
+                                <img
+                                  src={product.thumbnail}
+                                  alt={product.sku}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="max-w-full max-h-full object-contain"
+                                  onError={e => {
+                                    const imgEl = e.currentTarget as HTMLImageElement;
+                                    imgEl.onerror = null;
+                                    imgEl.src =
+                                      'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-extrabold text-xs text-blue-700 bg-blue-50/80 px-1 py-0.2 rounded border border-blue-200/60 shrink-0">
+                                  {product.sku}
+                                </span>
+                                {isBenchmark && (
+                                  <span className="text-[9px] font-bold bg-blue-600 text-white px-1 rounded shrink-0">
+                                    Mốc
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className="text-[11px] font-semibold text-slate-800 truncate cursor-pointer hover:text-blue-600 leading-tight mt-0.5"
+                                title={product.name}
+                                onClick={() => setZoomProduct(product)}
+                              >
+                                {product.name}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          {/* Khối bên phải: Nút làm mốc & Nút xóa cột */}
+                          <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
                               onClick={() => setBenchmarkId(isBenchmark ? '' : product.id)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                              className={`p-1 rounded text-xs transition-colors cursor-pointer ${
                                 isBenchmark
                                   ? 'bg-blue-600 text-white shadow-2xs'
-                                  : 'hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200'
+                                  : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
                               }`}
-                              title={isBenchmark ? 'Hủy chọn mốc đối chiếu' : 'Chọn làm mốc chuẩn để đối chiếu'}
+                              title={isBenchmark ? 'Hủy chọn mốc đối chiếu' : 'Chọn làm mốc đối chiếu'}
                             >
-                              <Target className="w-3 h-3" />
-                              {isBenchmark ? 'Đang làm mốc' : 'Làm mốc'}
+                              <Target className="w-3.5 h-3.5" />
                             </button>
-
                             {products.length > 2 && (
                               <button
                                 type="button"
@@ -609,107 +651,216 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             )}
                           </div>
                         </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              ) : (
+                /* === CHẾ ĐỘ ĐẦY ĐỦ (KHI Ở ĐẦU TRANG HOẶC KHI TẮT GHIM) === */
+                <tr className="border-b border-slate-200">
+                  {/* Cột 0: Tiêu đề góc trái */}
+                  <th className="sticky left-0 z-20 bg-white p-3.5 border-r border-slate-200 align-top">
+                    <div className="flex flex-col justify-between h-full space-y-2">
+                      <div>
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 block">
+                          CHỈ MỤC SO SÁNH
+                        </span>
+                        <p className="text-xs font-semibold text-slate-700 mt-1 leading-snug">
+                          Đối chiếu chi tiết 4 tầng giá & từng thông số
+                        </p>
+                      </div>
 
-                        {/* Ảnh sản phẩm: GỌN GÀNG (h-24/28, max-w-[200px], object-contain), KHÔNG BỊ TRÀN CHIẾM HẾT MÀN HÌNH */}
-                        {showImages && (
-                          <div className="relative h-24 sm:h-28 w-full max-w-[200px] mx-auto rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden p-1.5 group shadow-2xs">
-                            <img
-                              src={product.thumbnail}
-                              alt={product.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-105"
-                              onError={e => {
-                                const imgEl = e.currentTarget as HTMLImageElement;
-                                imgEl.onerror = null;
-                                imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
-                              }}
-                            />
-                            {/* Nút phóng to ảnh xem chi tiết khi người dùng muốn */}
+                      {benchmarkProduct ? (
+                        <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 leading-tight">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold flex items-center gap-1">
+                              <Target className="w-3 h-3 text-blue-600" /> Mốc: {benchmarkProduct.sku}
+                            </span>
                             <button
                               type="button"
-                              onClick={() => setZoomProduct(product)}
-                              className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-white text-xs font-bold transition-opacity cursor-pointer backdrop-blur-2xs"
-                              title="Nhấn để xem ảnh lớn chi tiết"
+                              onClick={() => setBenchmarkId('')}
+                              className="text-blue-600 hover:text-red-600 font-bold"
+                              title="Xóa mốc đối chiếu"
                             >
-                              <ZoomIn className="w-4 h-4" />
-                              <span>Xem ảnh lớn</span>
+                              ×
                             </button>
+                          </div>
+                          <span className="text-[10px] text-blue-700 mt-0.5 block">
+                            Các cột bên cạnh hiển thị mức chênh lệch (+ / -)
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic">
+                          Chọn nút "Làm mốc" ở sản phẩm để tính chênh lệch giá & cấu hình.
+                        </div>
+                      )}
+                    </div>
+                  </th>
 
-                            {/* Badge mã SKU góc ảnh */}
-                            <div className="absolute top-1.5 left-1.5 pointer-events-none">
-                              <span className="font-mono font-bold text-[10px] bg-slate-900/85 text-white px-1.5 py-0.5 rounded shadow-2xs">
-                                {product.sku}
+                  {/* Các cột sản phẩm đầy đủ */}
+                  {products.map((product, idx) => {
+                    const isBenchmark = product.id === benchmarkId;
+
+                    return (
+                      <th
+                        key={product.id}
+                        className={`p-3 border-r border-slate-200 align-top transition-colors ${
+                          isBenchmark
+                            ? 'bg-blue-50/40 ring-2 ring-blue-500/20'
+                            : 'bg-white'
+                        }`}
+                      >
+                        <div className="flex flex-col gap-2">
+                          {/* Hàng nút tác vụ: Chuyển vị trí cột, Làm mốc, Xóa */}
+                          <div className="flex items-center justify-between text-slate-400 text-xs">
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveColumn(idx, 'left')}
+                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
+                                title="Chuyển cột sang trái"
+                              >
+                                <ArrowLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === products.length - 1}
+                                onClick={() => handleMoveColumn(idx, 'right')}
+                                className="p-1 hover:text-slate-800 disabled:opacity-20 disabled:hover:text-slate-400 rounded hover:bg-slate-100 transition-colors"
+                                title="Chuyển cột sang phải"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setBenchmarkId(isBenchmark ? '' : product.id)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                  isBenchmark
+                                    ? 'bg-blue-600 text-white shadow-2xs'
+                                    : 'hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200'
+                                }`}
+                                title={isBenchmark ? 'Hủy chọn mốc đối chiếu' : 'Chọn làm mốc chuẩn để đối chiếu'}
+                              >
+                                <Target className="w-3 h-3" />
+                                {isBenchmark ? 'Đang làm mốc' : 'Làm mốc'}
+                              </button>
+
+                              {products.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onRemoveProduct(product.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors cursor-pointer"
+                                  title="Bỏ sản phẩm này khỏi bảng"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Ảnh sản phẩm: GỌN GÀNG (h-20 sm:h-24, max-w-[180px]) */}
+                          {showImages && (
+                            <div className="relative h-20 sm:h-24 w-full max-w-[180px] mx-auto rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden p-1.5 group shadow-2xs">
+                              <img
+                                src={product.thumbnail}
+                                alt={product.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-105"
+                                onError={e => {
+                                  const imgEl = e.currentTarget as HTMLImageElement;
+                                  imgEl.onerror = null;
+                                  imgEl.src =
+                                    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setZoomProduct(product)}
+                                className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-white text-xs font-bold transition-opacity cursor-pointer backdrop-blur-2xs"
+                                title="Nhấn để xem ảnh lớn chi tiết"
+                              >
+                                <ZoomIn className="w-4 h-4" />
+                                <span>Xem ảnh lớn</span>
+                              </button>
+
+                              <div className="absolute top-1.5 left-1.5 pointer-events-none">
+                                <span className="font-mono font-bold text-[10px] bg-slate-900/85 text-white px-1.5 py-0.5 rounded shadow-2xs">
+                                  {product.sku}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tiêu đề & Thương hiệu */}
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+                                {product.brand || product.categoryType}
+                              </span>
+                              {!showImages && (
+                                <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded">
+                                  {product.sku}
+                                </span>
+                              )}
+                            </div>
+                            <h4
+                              className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug hover:text-blue-600 transition-colors cursor-pointer"
+                              title={product.name}
+                              onClick={() => setZoomProduct(product)}
+                            >
+                              {product.name}
+                            </h4>
+                          </div>
+
+                          {/* Thẻ tóm tắt giá nhanh ở đầu cột */}
+                          <div className="pt-1.5 border-t border-slate-100 flex items-baseline justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-medium block">Giá NPP:</span>
+                              <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-700">
+                                {formatVND(product.pricing.distributorPrice)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 font-medium block">Giá bán lẻ:</span>
+                              <span className="text-xs font-bold font-mono text-slate-700">
+                                {formatVND(product.pricing.retailPrice)}
                               </span>
                             </div>
                           </div>
-                        )}
 
-                        {/* Tiêu đề & Thương hiệu */}
-                        <div className="space-y-0.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
-                              {product.brand || product.categoryType}
-                            </span>
-                            {!showImages && (
-                              <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded">
-                                {product.sku}
-                              </span>
-                            )}
-                          </div>
-                          <h4
-                            className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug hover:text-blue-600 transition-colors cursor-pointer"
-                            title={product.name}
-                            onClick={() => setZoomProduct(product)}
-                          >
-                            {product.name}
-                          </h4>
+                          {onEditProduct && (
+                            <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100">
+                              <button
+                                type="button"
+                                onClick={() => onEditProduct(product, true)}
+                                className="flex-1 py-1 px-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                title="Bóc tách thông số kỹ thuật AI"
+                              >
+                                <Sparkles className="w-3 h-3 text-blue-600" />
+                                <span>Bóc tách AI</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditProduct(product, false)}
+                                className="py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                title="Mở form chỉnh sửa sản phẩm"
+                              >
+                                <Edit3 className="w-3 h-3 text-slate-600" />
+                                <span>Sửa</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
-
-                        {/* Thẻ tóm tắt giá nhanh ở đầu cột */}
-                        <div className="pt-1.5 border-t border-slate-100 flex items-baseline justify-between">
-                          <div>
-                            <span className="text-[10px] text-slate-500 font-medium block">Giá NPP (Đại lý):</span>
-                            <span className="text-sm font-extrabold font-mono text-blue-700">
-                              {formatVND(product.pricing.distributorPrice)}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 font-medium block">Giá bán lẻ:</span>
-                            <span className="text-xs font-bold font-mono text-slate-700">
-                              {formatVND(product.pricing.retailPrice)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {onEditProduct && (
-                          <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => onEditProduct(product, true)}
-                              className="flex-1 py-1 px-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                              title="Bóc tách thông số kỹ thuật AI"
-                            >
-                              <Sparkles className="w-3 h-3 text-blue-600" />
-                              <span>Bóc tách AI</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onEditProduct(product, false)}
-                              className="py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                              title="Mở form chỉnh sửa sản phẩm"
-                            >
-                              <Edit3 className="w-3 h-3 text-slate-600" />
-                              <span>Sửa</span>
-                            </button>
-                          </div>
-                        )}
-
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
+                      </th>
+                    );
+                  })}
+                </tr>
+              )}
             </thead>
 
             {/* ----------------------------------------------------- */}
@@ -892,15 +1043,15 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                     })}
                   </tr>
 
-                  {/* Lợi nhuận NPP & Tỷ suất lợi nhuận */}
+                  {/* Lợi nhuận gộp = (Giá bán lẻ thương mại - Giá NPP) / Giá bán lẻ x 100% */}
                   <tr className="bg-emerald-50/50 hover:bg-emerald-50/80 transition-colors">
                     <td className={`sticky left-0 z-10 bg-emerald-50/90 ${rowPadding} font-bold text-emerald-950 border-r border-slate-200`}>
                       <div className="space-y-0.5">
                         <span className={`${fontSizeKey} font-bold text-emerald-900 block`}>
-                          Lợi nhuận gộp NPP (Lãi / Cái)
+                          Lợi nhuận gộp (Lãi / Cái)
                         </span>
                         <span className="text-[11px] font-normal text-emerald-700">
-                          Giá NPP trừ Giá nhập gốc
+                          (Giá bán lẻ - Giá NPP) / Bán lẻ
                         </span>
                       </div>
                     </td>
@@ -911,43 +1062,20 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <span className="font-mono font-extrabold text-emerald-700 text-sm">
-                                +{financials.nppMarginPercent}%
+                                +{financials.grossMarginPercent}%
                               </span>
-                              <span className="font-mono font-bold text-xs text-slate-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
-                                {formatVND(financials.nppGross)}
+                              <span className="font-mono font-bold text-xs text-slate-700 bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+                                {formatVND(financials.grossProfit)}
                               </span>
                             </div>
                             {/* Thanh trực quan tỷ lệ % lợi nhuận */}
                             <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                               <div
                                 className="bg-emerald-600 h-full rounded-full transition-all"
-                                style={{ width: `${Math.min(financials.nppMarginPercent * 2.5, 100)}%` }}
+                                style={{ width: `${Math.min(financials.grossMarginPercent * 2, 100)}%` }}
                               />
                             </div>
                           </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-
-                  {/* Khoảng thương lượng / Chiết khấu sàn tối đa */}
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className={`sticky left-0 z-10 bg-white ${rowPadding} font-semibold text-slate-700 border-r border-slate-200`}>
-                      <span className={`${fontSizeKey} block`}>Biên độ thương lượng tối đa</span>
-                      <span className="text-[11px] text-slate-400 font-normal">
-                        Giá bán lẻ trừ Giá sàn
-                      </span>
-                    </td>
-                    {products.map(p => {
-                      const financials = calculateFinancials(p.pricing);
-                      return (
-                        <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white`}>
-                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm block">
-                            {formatVND(financials.discountBuffer)}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            (tối đa {financials.discountBufferPercent}% giá bán lẻ)
-                          </span>
                         </td>
                       );
                     })}

@@ -922,7 +922,7 @@ Công suất: 1850-2200W..."
                     <span className="truncate">Cơ cấu 4 tầng giá (VND)</span>
                   </h4>
                   <div className="text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    Biên LN NPP: +{liveFinancials.nppMarginPercent}% ({formatVND(liveFinancials.nppGross)})
+                    LN gộp: +{liveFinancials.grossMarginPercent}% ({formatVND(liveFinancials.grossProfit)})
                   </div>
                 </div>
 
