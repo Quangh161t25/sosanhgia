@@ -742,6 +742,8 @@ export default function App() {
         }}
         onSave={handleSaveProduct}
         onOpenExcelImport={() => setIsExcelImportOpen(true)}
+        allProducts={products}
+        onAddToCompare={handleToggleCompare}
       />
 
       {/* Modal Nhập Dữ Liệu Excel (.xlsx, .xls, .csv) toàn hệ thống */}

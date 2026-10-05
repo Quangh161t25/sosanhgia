@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ViewMode } from '../types/product';
 import {
   formatVND,
@@ -8,6 +8,10 @@ import {
   getAllSpecKeysByGroup,
   findSpecValue,
 } from '../utils/pricing';
+import {
+  analyzeComparisonMatrix,
+  ComparisonAnalysisResult,
+} from '../utils/aiProductAdvisor';
 import {
   X,
   Printer,
@@ -34,6 +38,13 @@ import {
   Edit3,
   Pin,
   PinOff,
+  RefreshCw,
+  Loader2,
+  Trophy,
+  TrendingUp,
+  AlertCircle,
+  UserCheck,
+  Award,
 } from 'lucide-react';
 
 interface ComparisonMatrixProps {
@@ -79,6 +90,60 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
   const [collapsePricing, setCollapsePricing] = useState(false);
   const [collapseDescription, setCollapseDescription] = useState(false);
   const [collapseWarranty, setCollapseWarranty] = useState(false);
+
+  // 4. AI Đánh giá vượt trội & phân tích chiến lược
+  const [aiAnalysis, setAiAnalysis] = useState<ComparisonAnalysisResult | null>(null);
+  const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
+  const [showAiVerdict, setShowAiVerdict] = useState(false);
+  const [collapseAiInsights, setCollapseAiInsights] = useState(false);
+
+  // Tự động đồng bộ / đặt lại trạng thái AI khi danh sách sản phẩm so sánh thay đổi
+  useEffect(() => {
+    if (aiAnalysis) {
+      const currentIds = new Set(products.map(p => p.id));
+      const analyzedIds = Object.keys(aiAnalysis.insights);
+      const isSame =
+        analyzedIds.length === products.length &&
+        analyzedIds.every(id => currentIds.has(id));
+      if (!isSame) {
+        setAiAnalysis(null);
+        setShowAiVerdict(false);
+      }
+    }
+  }, [products, aiAnalysis]);
+
+  // Các sản phẩm quán quân từ AI
+  const specsWinnerProduct = useMemo(
+    () => (aiAnalysis ? products.find(p => p.id === aiAnalysis.specsWinnerId) : null),
+    [aiAnalysis, products]
+  );
+  const marginWinnerProduct = useMemo(
+    () => (aiAnalysis ? products.find(p => p.id === aiAnalysis.marginWinnerId) : null),
+    [aiAnalysis, products]
+  );
+  const valueWinnerProduct = useMemo(
+    () => (aiAnalysis ? products.find(p => p.id === aiAnalysis.valueWinnerId) : null),
+    [aiAnalysis, products]
+  );
+
+  // Xử lý kích hoạt AI phân tích & đánh giá vượt trội
+  const handleRunAiComparison = async () => {
+    if (aiAnalysis && !showAiVerdict) {
+      setShowAiVerdict(true);
+      return;
+    }
+    setIsAnalyzingAi(true);
+    try {
+      const result = await analyzeComparisonMatrix(products);
+      setAiAnalysis(result);
+      setShowAiVerdict(true);
+      setCollapseAiInsights(false);
+    } catch (err) {
+      console.error('Lỗi khi AI phân tích bảng so sánh:', err);
+    } finally {
+      setIsAnalyzingAi(false);
+    }
+  };
 
   // Sản phẩm chuẩn mốc đối chiếu
   const benchmarkProduct = useMemo(
@@ -162,6 +227,24 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
     // Bảo hành & Ghi chú
     rows.push(['Thời hạn bảo hành', ...products.map(p => `${p.warrantyMonths || 12} Tháng`)]);
     rows.push(['Ghi chú chính sách', ...products.map(p => `"${p.notes || ''}"`)]);
+
+    // Đánh giá chiến lược từ AI (nếu có)
+    if (aiAnalysis) {
+      rows.push(['--- ĐÁNH GIÁ CHIẾN LƯỢC TỪ AI ---', ...products.map(() => '')]);
+      rows.push(['Huy hiệu chiến lược AI', ...products.map(p => aiAnalysis.insights[p.id]?.badge.label || '-')]);
+      rows.push([
+        'Ưu điểm vượt trội (Pros)',
+        ...products.map(p => (aiAnalysis.insights[p.id]?.pros || []).join('; ') || '-'),
+      ]);
+      rows.push([
+        'Điểm cần cân nhắc (Cons)',
+        ...products.map(p => (aiAnalysis.insights[p.id]?.cons || []).join('; ') || '-'),
+      ]);
+      rows.push([
+        'Khách hàng phù hợp',
+        ...products.map(p => aiAnalysis.insights[p.id]?.targetAudience || '-'),
+      ]);
+    }
 
     const csvContent =
       '\uFEFF' +
@@ -331,6 +414,35 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                 Giá & Lợi nhuận
               </button>
             </div>
+
+            {/* Nút AI Đánh Giá Vượt Trội */}
+            <button
+              type="button"
+              onClick={handleRunAiComparison}
+              disabled={isAnalyzingAi || products.length < 2}
+              title={
+                products.length < 2
+                  ? 'Cần ít nhất 2 sản phẩm để AI đánh giá đối chiếu'
+                  : 'AI đối chiếu toàn diện: Tìm Quán quân Cấu hình, Quán quân Lợi nhuận NPP, Quán quân Giá tốt nhất và phân tích ưu - nhược điểm'
+              }
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+                showAiVerdict && aiAnalysis
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-200 hover:brightness-105'
+                  : 'bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 hover:from-purple-100 hover:to-indigo-100 text-purple-700 border border-purple-200'
+              } ${isAnalyzingAi ? 'opacity-80 cursor-wait' : ''}`}
+            >
+              {isAnalyzingAi ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
+                  <span>AI đang đánh giá...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className={`w-3.5 h-3.5 ${showAiVerdict && aiAnalysis ? 'text-amber-300 fill-amber-300' : 'text-purple-600'}`} />
+                  <span>{aiAnalysis ? (showAiVerdict ? 'AI Đánh Giá' : 'Mở AI Đánh Giá') : '✨ AI Đánh Giá Vượt Trội'}</span>
+                </>
+              )}
+            </button>
 
             {/* Mốc đối chiếu chuẩn */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
@@ -554,6 +666,120 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
             }
           }}
         >
+          {/* ========================================================= */}
+          {/* BANNER PHÁN QUYẾT & ĐÁNH GIÁ VƯỢT TRỘI TỪ AI (NẾU BẬT)     */}
+          {/* ========================================================= */}
+          {showAiVerdict && aiAnalysis && (
+            <div className="m-3 p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white shadow-xl border border-purple-500/30">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/30 flex items-center justify-center border border-purple-400/40 text-purple-300 shadow-inner">
+                    <Sparkles className="w-4 h-4 text-purple-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-xs sm:text-sm tracking-wide text-purple-100 uppercase">
+                        Phán Quyết & Đánh Giá Vượt Trội Từ AI
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                        {aiAnalysis.usedAI ? 'Gemini 2.5 Flash' : 'Thuật Toán Đa Tiêu Chí'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRunAiComparison}
+                    disabled={isAnalyzingAi}
+                    className="text-xs text-purple-300 hover:text-white flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer border border-purple-400/20"
+                    title="Chạy lại phân tích AI"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzingAi ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Phân tích lại</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAiVerdict(false)}
+                    className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Đóng phán quyết"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Nhận định tổng kết */}
+              <p className="text-xs sm:text-sm text-slate-200 my-3 leading-relaxed font-medium">
+                {aiAnalysis.overallSummary}
+              </p>
+
+              {/* 3 Thẻ Vinh Danh Quán Quân */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                {/* 1. Cấu hình vượt trội */}
+                {specsWinnerProduct && (
+                  <div className="bg-white/5 border border-purple-400/25 rounded-xl p-3 backdrop-blur-xs flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 border border-purple-400/30 text-purple-300">
+                      <Trophy className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-extrabold text-purple-300 block uppercase tracking-wider">
+                        Quán quân Cấu hình
+                      </span>
+                      <div className="font-bold text-xs text-white truncate mt-0.5">
+                        {specsWinnerProduct.sku} - {specsWinnerProduct.name}
+                      </div>
+                      <p className="text-[11px] text-purple-200/80 truncate mt-0.5">
+                        {aiAnalysis.insights[specsWinnerProduct.id]?.pros[0] || 'Thông số trang bị đầy đủ nhất'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Lợi nhuận NPP cao nhất */}
+                {marginWinnerProduct && (
+                  <div className="bg-white/5 border border-emerald-400/25 rounded-xl p-3 backdrop-blur-xs flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-400/30 text-emerald-300">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-extrabold text-emerald-300 block uppercase tracking-wider">
+                        Lợi nhuận NPP Tối Đa
+                      </span>
+                      <div className="font-bold text-xs text-white truncate mt-0.5">
+                        {marginWinnerProduct.sku} - {marginWinnerProduct.name}
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 truncate mt-0.5">
+                        {aiAnalysis.insights[marginWinnerProduct.id]?.pros[0] || 'Tỷ suất lợi nhuận cao nhất'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Giá bán tốt nhất / Dễ chốt */}
+                {valueWinnerProduct && (
+                  <div className="bg-white/5 border border-amber-400/25 rounded-xl p-3 backdrop-blur-xs flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-400/30 text-amber-300">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-extrabold text-amber-300 block uppercase tracking-wider">
+                        Giá Bán Lẻ Hời Nhất (P/P)
+                      </span>
+                      <div className="font-bold text-xs text-white truncate mt-0.5">
+                        {valueWinnerProduct.sku} - {valueWinnerProduct.name}
+                      </div>
+                      <p className="text-[11px] text-amber-200/80 truncate mt-0.5">
+                        {formatVND(valueWinnerProduct.pricing.retailPrice)} - Dễ tiếp cận khách lẻ
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <table className="border-collapse text-left min-w-full">
             {/* Cột 0: Chỉ mục thuộc tính cố định chiều rộng; Các cột sản phẩm cố định ~280px-320px, không bị dãn bung màn hình */}
             <colgroup>
@@ -643,13 +869,21 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-mono font-extrabold text-xs text-blue-700 bg-blue-50/80 px-1 py-0.2 rounded border border-blue-200/60 shrink-0">
                                   {product.sku}
                                 </span>
                                 {isBenchmark && (
                                   <span className="text-[9px] font-bold bg-blue-600 text-white px-1 rounded shrink-0">
                                     Mốc
+                                  </span>
+                                )}
+                                {aiAnalysis?.insights[product.id] && (
+                                  <span
+                                    className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 border border-purple-200 truncate max-w-[85px]"
+                                    title={aiAnalysis.insights[product.id].badge.label}
+                                  >
+                                    ✨ {aiAnalysis.insights[product.id].badge.label}
                                   </span>
                                 )}
                               </div>
@@ -884,6 +1118,29 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             >
                               {product.name}
                             </h4>
+
+                            {/* Huy hiệu chiến lược AI nếu có */}
+                            {aiAnalysis?.insights[product.id] && (
+                              <div className="flex items-center justify-center pt-0.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                                    aiAnalysis.insights[product.id].badge.color === 'emerald'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : aiAnalysis.insights[product.id].badge.color === 'purple'
+                                      ? 'bg-purple-50 text-purple-700 border-purple-300'
+                                      : aiAnalysis.insights[product.id].badge.color === 'amber'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                      : 'bg-blue-50 text-blue-700 border-blue-300'
+                                  }`}
+                                  title={aiAnalysis.insights[product.id].badge.label}
+                                >
+                                  <Sparkles className="w-3 h-3 shrink-0" />
+                                  <span className="truncate max-w-[130px]">
+                                    {aiAnalysis.insights[product.id].badge.label}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Nút Bóc tách AI thu nhỏ */}
@@ -911,6 +1168,155 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
             {/* ----------------------------------------------------- */}
             <tbody className="divide-y divide-slate-200">
               
+              {/* =================================================== */}
+              {/* KHỐI 0: ĐÁNH GIÁ VƯỢT TRỘI & PHÂN TÍCH CHIẾN LƯỢC TỪ AI (NẾU ĐÃ CHẠY) */}
+              {/* =================================================== */}
+              {aiAnalysis && (
+                <>
+                  <tr className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white font-bold">
+                    <td
+                      colSpan={products.length + 1}
+                      onClick={() => setCollapseAiInsights(prev => !prev)}
+                      className="sticky left-0 z-10 px-4 py-2.5 text-xs uppercase tracking-wider bg-purple-900 hover:bg-purple-800 text-white cursor-pointer select-none transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-purple-300 animate-pulse" />
+                          <span>ĐÁNH GIÁ VƯỢT TRỘI & PHÂN TÍCH CHIẾN LƯỢC TỪ AI</span>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-normal lowercase text-purple-200">
+                            {collapseAiInsights ? 'Nhấn để mở rộng' : 'Nhấn để thu gọn'}
+                          </span>
+                          {collapseAiInsights ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {!collapseAiInsights && (
+                    <>
+                      {/* Dòng 1: Danh hiệu / Định vị AI */}
+                      <tr className="hover:bg-purple-50/30 transition-colors bg-purple-50/15">
+                        <td className={`sticky left-0 z-10 bg-white ${rowPadding} font-semibold text-slate-800 border-r border-slate-200`}>
+                          <div className="flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-purple-600" />
+                            <span className={`${fontSizeKey} font-bold text-purple-900`}>Vị thế & Huy hiệu AI</span>
+                          </div>
+                        </td>
+                        {products.map(p => {
+                          const ins = aiAnalysis.insights[p.id];
+                          return (
+                            <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white align-top`}>
+                              {ins ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-1 rounded-lg border ${
+                                    ins.badge.color === 'emerald'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : ins.badge.color === 'purple'
+                                      ? 'bg-purple-50 text-purple-700 border-purple-300'
+                                      : ins.badge.color === 'amber'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                      : 'bg-blue-50 text-blue-700 border-blue-300'
+                                  }`}
+                                >
+                                  <Sparkles className="w-3 h-3" />
+                                  {ins.badge.label}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+
+                      {/* Dòng 2: Ưu điểm vượt trội (Pros) */}
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        <td className={`sticky left-0 z-10 bg-white ${rowPadding} font-semibold text-slate-800 border-r border-slate-200 align-top`}>
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className={`${fontSizeKey} font-bold text-emerald-800`}>Ưu điểm vượt trội</span>
+                          </div>
+                        </td>
+                        {products.map(p => {
+                          const ins = aiAnalysis.insights[p.id];
+                          return (
+                            <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white align-top`}>
+                              {ins && ins.pros.length > 0 ? (
+                                <ul className="space-y-1 text-xs text-slate-700">
+                                  {ins.pros.map((pro, i) => (
+                                    <li key={i} className="flex items-start gap-1.5 leading-snug">
+                                      <span className="text-emerald-500 font-bold shrink-0 mt-0.5">✓</span>
+                                      <span className="font-medium text-slate-800">{pro}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+
+                      {/* Dòng 3: Điểm hạn chế / Cần lưu ý (Cons) */}
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        <td className={`sticky left-0 z-10 bg-white ${rowPadding} font-semibold text-slate-800 border-r border-slate-200 align-top`}>
+                          <div className="flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                            <span className={`${fontSizeKey} font-bold text-amber-800`}>Điểm cần cân nhắc</span>
+                          </div>
+                        </td>
+                        {products.map(p => {
+                          const ins = aiAnalysis.insights[p.id];
+                          return (
+                            <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white align-top`}>
+                              {ins && ins.cons.length > 0 ? (
+                                <ul className="space-y-1 text-xs text-slate-600">
+                                  {ins.cons.map((con, i) => (
+                                    <li key={i} className="flex items-start gap-1.5 leading-snug">
+                                      <span className="text-amber-500 font-bold shrink-0 mt-0.5">•</span>
+                                      <span>{con}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <span className="text-slate-400 text-xs">Không có hạn chế nổi bật</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+
+                      {/* Dòng 4: Khách hàng phù hợp (Target Audience) */}
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        <td className={`sticky left-0 z-10 bg-white ${rowPadding} font-semibold text-slate-800 border-r border-slate-200 align-top`}>
+                          <div className="flex items-center gap-1.5">
+                            <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                            <span className={`${fontSizeKey} font-bold text-blue-900`}>Đối tượng phù hợp</span>
+                          </div>
+                        </td>
+                        {products.map(p => {
+                          const ins = aiAnalysis.insights[p.id];
+                          return (
+                            <td key={p.id} className={`${rowPadding} border-r border-slate-200 bg-white align-top`}>
+                              {ins?.targetAudience ? (
+                                <div className="text-xs text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200/80 leading-relaxed font-medium">
+                                  {ins.targetAudience}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </>
+                  )}
+                </>
+              )}
+
               {/* =================================================== */}
               {/* KHỐI 1: BẢNG ĐỐI CHIẾU 4 TẦNG GIÁ & LỢI NHUẬN        */}
               {/* =================================================== */}
