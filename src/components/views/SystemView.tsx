@@ -127,7 +127,12 @@ export const SystemView: React.FC<SystemViewProps> = ({
       const res = await testGeminiApiKey(apiKey);
       setTestKeyResult(res);
       if (res.success) {
-        saveGeminiKey(apiKey);
+        if (res.cleanedKey) {
+          setApiKey(res.cleanedKey);
+          saveGeminiKey(res.cleanedKey);
+        } else {
+          saveGeminiKey(apiKey);
+        }
       }
     } catch (e: any) {
       setTestKeyResult({ success: false, message: e?.message || 'Lỗi kiểm tra API Key' });
@@ -268,6 +273,21 @@ export const SystemView: React.FC<SystemViewProps> = ({
             <span>
               Google Sheet: <strong className="text-slate-800">SO_SANH_GIA</strong> &bull; Tab lưu cấu hình: <strong className="text-emerald-700 font-mono">CAI_DAT</strong> (Cột C: Giá trị cấu hình).
             </span>
+          </div>
+
+          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 space-y-1.5 text-xs text-slate-700">
+            <div className="font-semibold text-blue-900 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <span>Lưu ý phân biệt API Key:</span>
+            </div>
+            <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600 leading-relaxed">
+              <li>
+                <strong className="text-slate-800">Kết nối Google Sheets:</strong> Đã được hệ thống kết nối tự động bằng tài khoản Service Account (<code className="text-blue-700 bg-blue-100/60 px-1 py-0.5 rounded">lnk-773@cty-lnk-161.iam.gserviceaccount.com</code>), <span className="text-emerald-700 font-semibold">bạn không cần nhập vào đây</span>.
+              </li>
+              <li>
+                <strong className="text-slate-800">Mã API Key ở ô này:</strong> Chỉ dùng mã khóa từ <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">Google AI Studio</a> (bắt đầu bằng <code className="text-blue-700 bg-blue-100/60 px-1 py-0.5 rounded">AIzaSy...</code>, 39 ký tự) cho tính năng <span className="font-semibold text-slate-800">AI bóc tách thông số kỹ thuật</span>.
+              </li>
+            </ul>
           </div>
         </div>
       </div>

@@ -121,6 +121,34 @@ export function googleSheetsVitePlugin(): Plugin {
             return sendJson(res, result);
           }
 
+          // 8. POST /api/sheets/test-gemini-key
+          if (req.method === 'POST' && pathname === '/api/sheets/test-gemini-key') {
+            const body = await parseJsonBody(req);
+            let apiKey = (body?.apiKey || '').trim();
+            const match = apiKey.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+            if (match) apiKey = match[0];
+            const testUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+            try {
+              const googleRes = await fetch(testUrl);
+              if (googleRes.ok) {
+                const data: any = await googleRes.json().catch(() => ({}));
+                return sendJson(res, {
+                  success: true,
+                  cleanedKey: apiKey,
+                  message: `Kết nối thành công tới Google Gemini AI (${data?.models?.length || 0} mô hình)!`,
+                });
+              }
+              const errData: any = await googleRes.json().catch(() => ({}));
+              return sendJson(res, {
+                success: false,
+                cleanedKey: apiKey,
+                message: errData?.error?.message || `Google API phản hồi lỗi HTTP ${googleRes.status}`,
+              });
+            } catch (netErr: any) {
+              return sendError(res, netErr?.message || 'Không thể liên lạc máy chủ Google', 500);
+            }
+          }
+
           return sendError(res, 'Endpoint không tồn tại', 404);
         } catch (err: any) {
           console.error('[Google Sheets API Error]:', err);

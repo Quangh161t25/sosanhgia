@@ -223,7 +223,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       const res = await testGeminiApiKey(apiKey);
       setTestKeyResult(res);
       if (res.success) {
-        saveGeminiKey(apiKey);
+        if (res.cleanedKey) {
+          setApiKey(res.cleanedKey);
+          saveGeminiKey(res.cleanedKey);
+        } else {
+          saveGeminiKey(apiKey);
+        }
       }
     } catch (e: any) {
       setTestKeyResult({ success: false, message: e?.message || 'Lỗi kiểm tra API Key' });

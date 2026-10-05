@@ -20,8 +20,9 @@ export function getSavedGeminiKey(): string {
 
 export function saveGeminiKey(key: string): void {
   try {
-    if (key.trim()) {
-      localStorage.setItem(GEMINI_API_KEY_STORAGE, key.trim());
+    const cleaned = cleanApiKey(key);
+    if (cleaned) {
+      localStorage.setItem(GEMINI_API_KEY_STORAGE, cleaned);
     } else {
       localStorage.removeItem(GEMINI_API_KEY_STORAGE);
     }
@@ -37,7 +38,7 @@ export async function syncGeminiKeyFromSheet(): Promise<string> {
   try {
     const settings = await fetchSheetSettings();
     if (settings && settings.GEMINI_API_KEY && settings.GEMINI_API_KEY.trim()) {
-      const key = settings.GEMINI_API_KEY.trim();
+      const key = cleanApiKey(settings.GEMINI_API_KEY);
       saveGeminiKey(key);
       return key;
     }
@@ -51,7 +52,7 @@ export async function syncGeminiKeyFromSheet(): Promise<string> {
  * Lưu Gemini API Key vào cả trình duyệt và trực tiếp lên Google Sheet (sheet CAI_DAT)
  */
 export async function saveGeminiKeyToSheet(key: string): Promise<boolean> {
-  const cleanKey = key.trim();
+  const cleanKey = cleanApiKey(key);
   saveGeminiKey(cleanKey);
   try {
     await saveSheetSettings({ GEMINI_API_KEY: cleanKey });
@@ -484,37 +485,145 @@ export function parseMultiProductsLocally(rawText: string): Partial<Product>[] {
 const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 
 /**
- * Kiểm tra kết nối và tính hợp lệ của API Key
+ * Làm sạch và chuẩn hóa mã Gemini API Key (bỏ ngoặc kép, nháy đơn, tiền tố gán biến)
  */
-export async function testGeminiApiKey(key: string): Promise<{ success: boolean; message: string }> {
-  const cleanKey = key.trim();
-  if (!cleanKey) {
-    return { success: false, message: 'Vui lòng nhập API Key' };
+export function cleanApiKey(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+
+  // Tự động nhận diện chuỗi Google AI Studio key (bắt đầu bằng AIzaSy và có 39 ký tự)
+  const keyMatch = cleaned.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+  if (keyMatch) {
+    return keyMatch[0];
   }
 
-  for (const model of GEMINI_MODELS) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Trả về chuỗi OK' }] }],
-          generationConfig: { maxOutputTokens: 10 },
-        }),
-      });
+  // Bỏ dấu ngoặc kép hoặc nháy đơn bao quanh
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
 
-      if (res.ok) {
-        return { success: true, message: `Kết nối thành công tới mô hình ${model}!` };
+  // Bỏ tiền tố gán biến nếu người dùng copy từ code / .env
+  cleaned = cleaned.replace(/^(VITE_)?(GEMINI_)?API_KEY\s*[:=]\s*/i, '');
+  cleaned = cleaned.replace(/^key\s*[:=]\s*/i, '');
+  cleaned = cleaned.replace(/^Bearer\s+/i, '');
+
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+
+  return cleaned.trim();
+}
+
+/**
+ * Kiểm tra kết nối và tính hợp lệ của API Key với chẩn đoán lỗi chi tiết
+ */
+export async function testGeminiApiKey(key: string): Promise<{ success: boolean; message: string; cleanedKey?: string }> {
+  const raw = (key || '').trim();
+  if (!raw) {
+    return { success: false, message: 'Vui lòng nhập mã Gemini API Key' };
+  }
+
+  // 1. Nhận diện trường hợp người dùng nhầm lẫn với Google Service Account của Google Sheets
+  if (raw.includes('gserviceaccount.com') || (raw.includes('{') && raw.includes('private_key'))) {
+    return {
+      success: false,
+      message: '⚠️ Đây là thông tin Service Account của Google Sheets! Khóa Google Sheets đã được hệ thống cấu hình tự động kết nối với file SO_SANH_GIA rồi (không cần điền vào đây). Ô này chỉ dành cho Gemini AI API Key (khóa từ Google AI Studio, bắt đầu bằng AIzaSy...) để dùng tính năng AI bóc tách thông số kỹ thuật.',
+    };
+  }
+
+  const cleanKey = cleanApiKey(raw);
+
+  if (!cleanKey) {
+    return { success: false, message: 'Mã API Key không hợp lệ hoặc để trống' };
+  }
+
+  if (cleanKey.length < 20) {
+    return {
+      success: false,
+      message: 'Mã API Key không đúng định dạng. Khóa Google Gemini AI thường bắt đầu bằng "AIzaSy..." gồm 39 ký tự.',
+    };
+  }
+
+  // 2. Thử gọi trực tiếp Google Generative Language API (GET /models)
+  try {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
+    const res = await fetch(endpoint, { method: 'GET' });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const modelsCount = Array.isArray(data?.models) ? data.models.length : 0;
+      return {
+        success: true,
+        cleanedKey: cleanKey,
+        message: `Kết nối thành công tới Google Gemini AI (${modelsCount > 0 ? `${modelsCount} mô hình khả dụng` : 'Khóa hợp lệ'})!`,
+      };
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      const googleMsg = errData?.error?.message || `HTTP ${res.status}`;
+      const status = errData?.error?.status || '';
+
+      if (googleMsg.toLowerCase().includes('api key not valid') || status === 'INVALID_ARGUMENT') {
+        return {
+          success: false,
+          cleanedKey: cleanKey,
+          message: 'Mã API Key không chính xác. Hãy kiểm tra lại khóa đã copy từ Google AI Studio (bắt đầu bằng AIzaSy...).',
+        };
       }
-    } catch (e: any) {
-      console.warn(`Lỗi kiểm tra ${model}:`, e?.message);
+      if (googleMsg.toLowerCase().includes('has not been used in project') || googleMsg.toLowerCase().includes('disabled')) {
+        return {
+          success: false,
+          cleanedKey: cleanKey,
+          message: 'API Key hợp lệ nhưng dịch vụ Generative Language API chưa được bật trên Google Cloud Console cho project này.',
+        };
+      }
+      if (googleMsg.toLowerCase().includes('quota') || status === 'RESOURCE_EXHAUSTED') {
+        return {
+          success: false,
+          cleanedKey: cleanKey,
+          message: 'API Key hợp lệ nhưng đã tạm thời hết hạn mức (Quota) miễn phí hôm nay.',
+        };
+      }
+      if (googleMsg.toLowerCase().includes('referer') || status === 'PERMISSION_DENIED') {
+        return {
+          success: false,
+          cleanedKey: cleanKey,
+          message: `API Key bị giới hạn domain/IP: ${googleMsg}`,
+        };
+      }
+
+      return {
+        success: false,
+        cleanedKey: cleanKey,
+        message: `Google phản hồi: ${googleMsg}`,
+      };
     }
+  } catch (directErr: any) {
+    console.warn('Gọi trực tiếp Google API từ trình duyệt thất bại, chuyển qua backend proxy:', directErr?.message);
+  }
+
+  // 3. Fallback: Nếu trình duyệt bị chặn CORS / Adblock, gọi qua backend Serverless proxy
+  try {
+    const proxyRes = await fetch('/api/sheets/test-gemini-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: cleanKey }),
+    });
+    if (proxyRes.ok) {
+      const proxyData = await proxyRes.json();
+      return {
+        success: !!proxyData.success,
+        cleanedKey: proxyData.cleanedKey || cleanKey,
+        message: proxyData.message || (proxyData.success ? 'Kết nối thành công!' : 'API Key không hợp lệ'),
+      };
+    }
+  } catch (proxyErr: any) {
+    console.warn('Gọi qua backend proxy thất bại:', proxyErr?.message);
   }
 
   return {
     success: false,
-    message: 'API Key không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại trên Google AI Studio.',
+    cleanedKey: cleanKey,
+    message: 'Không thể kết nối đến Google Gemini API (có thể do mạng hoặc phần mềm chặn quảng cáo AdBlock/Brave chặn domain googleapis.com). Vui lòng thử lại.',
   };
 }
 
