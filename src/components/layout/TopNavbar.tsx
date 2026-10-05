@@ -209,7 +209,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               <img
                 src={currentUser.anh}
                 alt={currentUser.hoTen}
+                loading="lazy"
+                decoding="async"
                 className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-200"
+                onError={e => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">

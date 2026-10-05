@@ -281,20 +281,26 @@ export default function App() {
   // Đồng bộ hai chiều giữa URL trình duyệt và trạng thái ứng dụng (Pathname + Query Params)
   useEffect(() => {
     try {
-      const url = new URL(window.location.href);
       const targetPath = TAB_ROUTES[currentTab] || '/san-pham';
-      url.pathname = targetPath;
+      const searchParams = new URLSearchParams(window.location.search);
+      const currentCompare = searchParams.get('compare') || '';
+      const targetCompare = compareIds.join(',');
 
-      if (compareIds.length > 0) {
-        url.searchParams.set('compare', compareIds.join(','));
-      } else {
-        url.searchParams.delete('compare');
-      }
+      const pathChanged = window.location.pathname !== targetPath;
+      const compareChanged = currentCompare !== targetCompare;
 
-      const newUrlStr = url.pathname + url.search;
-      const currentUrlStr = window.location.pathname + window.location.search;
-      if (newUrlStr !== currentUrlStr) {
-        window.history.replaceState({ tab: currentTab }, '', newUrlStr);
+      if (pathChanged || compareChanged) {
+        if (targetCompare) {
+          searchParams.set('compare', targetCompare);
+        } else {
+          searchParams.delete('compare');
+        }
+        const searchStr = searchParams.toString();
+        const newUrlStr = targetPath + (searchStr ? `?${searchStr}` : '');
+        const currentUrlStr = window.location.pathname + window.location.search;
+        if (newUrlStr !== currentUrlStr) {
+          window.history.replaceState({ tab: currentTab }, '', newUrlStr);
+        }
       }
     } catch (e) {
       // Ignore in restricted environments

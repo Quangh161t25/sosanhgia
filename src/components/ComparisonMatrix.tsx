@@ -429,7 +429,14 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                           <img
                             src={item.thumbnail}
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             className="w-8 h-8 rounded-md object-contain bg-slate-100 shrink-0"
+                            onError={e => {
+                              const imgEl = e.currentTarget as HTMLImageElement;
+                              imgEl.onerror = null;
+                              imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                            }}
                           />
                           <div className="truncate">
                             <span className="font-mono font-bold text-slate-900 block leading-tight">
@@ -609,9 +616,13 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
                             <img
                               src={product.thumbnail}
                               alt={product.name}
+                              loading="lazy"
+                              decoding="async"
                               className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-105"
                               onError={e => {
-                                (e.target as HTMLElement).style.display = 'none';
+                                const imgEl = e.currentTarget as HTMLImageElement;
+                                imgEl.onerror = null;
+                                imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                               }}
                             />
                             {/* Nút phóng to ảnh xem chi tiết khi người dùng muốn */}
@@ -1282,7 +1293,14 @@ export const ComparisonMatrix: React.FC<ComparisonMatrixProps> = ({
               <img
                 src={zoomProduct.thumbnail}
                 alt={zoomProduct.name}
+                loading="lazy"
+                decoding="async"
                 className="max-h-[55vh] max-w-full object-contain rounded-lg shadow-sm"
+                onError={e => {
+                  const imgEl = e.currentTarget as HTMLImageElement;
+                  imgEl.onerror = null;
+                  imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                }}
               />
             </div>
 
