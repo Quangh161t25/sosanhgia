@@ -56,12 +56,28 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   // Quản lý bề rộng ngăn bên: 'narrow' (Hẹp), 'standard' (Chuẩn), 'wide' (Rộng)
   const [panelWidth, setPanelWidth] = useState<'narrow' | 'standard' | 'wide'>('standard');
 
-  // AI Sản phẩm tương tự
+  // AI Sản phẩm tương tự - Mặc định LUÔN MỞ RỘNG (wide) theo yêu cầu
   const [similarProducts, setSimilarProducts] = useState<SimilarProductResult[]>([]);
   const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
   const [showSimilarPanel, setShowSimilarPanel] = useState(true);
-  const [similarPanelWidth, setSimilarPanelWidth] = useState<'normal' | 'wide'>('normal');
-  const [similarFilter, setSimilarFilter] = useState<'all' | 'type' | 'group' | 'name'>('all');
+  const [similarPanelWidth, setSimilarPanelWidth] = useState<'normal' | 'wide'>(() => {
+    try {
+      const saved = localStorage.getItem('procompare_similar_panel_width');
+      if (saved === 'normal' || saved === 'wide') return saved;
+    } catch (e) {}
+    return 'wide'; // Mặc định luôn mở rộng (wide)
+  });
+  const [similarFilter, setSimilarFilter] = useState<'all' | 'compatible' | 'type' | 'group' | 'name'>('all');
+
+  const toggleSimilarPanelWidth = () => {
+    setSimilarPanelWidth(w => {
+      const next = w === 'normal' ? 'wide' : 'normal';
+      try {
+        localStorage.setItem('procompare_similar_panel_width', next);
+      } catch (e) {}
+      return next;
+    });
+  };
 
   // Tự động tìm sản phẩm tương tự khi mở sản phẩm (tăng giới hạn lên 40 sản phẩm)
   useEffect(() => {
@@ -91,7 +107,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       .finally(() => setIsLoadingSimilar(false));
   };
 
+  // Danh sách các sản phẩm có độ tương thích cao
+  const compatibleProducts = React.useMemo(() => {
+    const highMatch = similarProducts.filter(
+      s =>
+        (s.criteriaMatch?.typeMatch?.isSame && s.criteriaMatch?.groupMatch?.isSame) ||
+        s.similarityScore >= 70 ||
+        s.criteriaMatch?.typeMatch?.isSame
+    );
+    if (highMatch.length > 0) return highMatch;
+    return similarProducts.filter(s => s.similarityScore >= 50);
+  }, [similarProducts]);
+
   const displayedSimilarProducts = React.useMemo(() => {
+    if (similarFilter === 'compatible') {
+      return compatibleProducts;
+    }
     if (similarFilter === 'type') {
       return similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame);
     }
@@ -102,7 +133,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       return similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20);
     }
     return similarProducts;
-  }, [similarProducts, similarFilter]);
+  }, [similarProducts, similarFilter, compatibleProducts]);
 
   if (!product) return null;
 
@@ -158,7 +189,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setSimilarPanelWidth(w => (w === 'normal' ? 'wide' : 'normal'))}
+                onClick={toggleSimilarPanelWidth}
                 className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title={similarPanelWidth === 'normal' ? 'Mở rộng ngăn trái (Xem rộng rãi hơn)' : 'Thu hẹp ngăn trái (Gọn gàng)'}
               >
@@ -201,6 +232,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 }`}
               >
                 Tất cả ({similarProducts.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimilarFilter('compatible')}
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1 ${
+                  similarFilter === 'compatible'
+                    ? 'bg-amber-500 text-white font-bold shadow-xs'
+                    : 'bg-slate-800/80 text-amber-300 hover:text-white'
+                }`}
+                title="Sản phẩm tương thích cao (cùng loại, nhóm hoặc điểm tương đồng cao)"
+              >
+                🔥 Tương thích ({compatibleProducts.length})
               </button>
               <button
                 type="button"
