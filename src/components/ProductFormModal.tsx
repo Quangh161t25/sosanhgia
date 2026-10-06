@@ -32,6 +32,8 @@ import {
   CheckCheck,
   Eye,
   Scale,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatVND, calculateFinancials } from '../utils/pricing';
@@ -169,6 +171,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [similarProducts, setSimilarProducts] = useState<SimilarProductResult[]>([]);
   const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
   const [showSimilarPanel, setShowSimilarPanel] = useState(true);
+  const [similarPanelWidth, setSimilarPanelWidth] = useState<'normal' | 'wide'>('normal');
 
   // AI Gợi ý phân loại danh mục & loại sản phẩm
   const [isClassifyingCategory, setIsClassifyingCategory] = useState(false);
@@ -534,10 +537,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <aside
           style={{ zIndex: 61 }}
           aria-label="Sản phẩm tương tự AI"
-          className="fixed inset-y-0 left-0 hidden md:flex flex-col w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[420px] bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden"
+          className={`fixed inset-y-0 left-0 hidden md:flex flex-col ${
+            similarPanelWidth === 'wide'
+              ? 'w-[450px] lg:w-[480px] xl:w-[520px] 2xl:w-[560px]'
+              : 'w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[400px]'
+          } bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden transition-all`}
         >
           {/* Header Panel */}
-          <div className="p-3.5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between shrink-0">
+          <div className="p-3 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center border border-blue-500/30">
                 <Sparkles className="w-4 h-4 text-blue-400" />
@@ -556,6 +563,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSimilarPanelWidth(w => (w === 'normal' ? 'wide' : 'normal'))}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title={similarPanelWidth === 'normal' ? 'Mở rộng ngăn trái (Xem rộng rãi hơn)' : 'Thu hẹp ngăn trái (Gọn gàng)'}
+              >
+                {similarPanelWidth === 'normal' ? (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Minimize2 className="w-3.5 h-3.5" />
+                )}
+              </button>
               <button
                 type="button"
                 onClick={handleFindSimilarProducts}
@@ -650,80 +669,66 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
                     </div>
 
-                    {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ CỐT LÕI */}
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-750 text-[11px] space-y-1.5">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
-                        <span className="flex items-center gap-1 text-blue-400">
-                          <Sparkles className="w-3 h-3" />
+                    {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ SIÊU GỌN */}
+                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
+                        <span className="font-semibold text-slate-300 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-blue-400" />
                           Đối chiếu 3 tiêu chí
                         </span>
-                        <span className="font-mono text-emerald-400 font-semibold">{similarityScore}đ</span>
+                        <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
                       </div>
 
-                      {/* Tiêu chí 1: Tên sản phẩm */}
-                      <div className="space-y-0.5">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 font-medium">1. Tên SP:</span>
-                          <span className="font-mono text-[10px] font-semibold text-blue-300">
-                            {criteriaMatch?.nameMatch?.score ?? 0}% khớp từ khóa
-                          </span>
+                      {/* 1. Tên */}
+                      <div className="flex items-center justify-between gap-1.5 leading-tight">
+                        <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
+                          <span>1. Tên:</span>
+                          <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
                         </div>
-                        <div className="text-[10px] text-slate-300 bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate">
+                        <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
                           {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
-                            <span className="text-emerald-300">
-                              ✓ Trùng: <span className="font-semibold text-white">{criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}</span>
+                            <span className="text-emerald-300 font-medium truncate">
+                              ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
                             </span>
                           ) : (
-                            <span className="text-slate-400 italic">Từ khóa tên khác biệt</span>
+                            <span className="text-slate-500 italic">Khác từ khóa</span>
                           )}
                         </div>
                       </div>
 
-                      {/* Tiêu chí 2: Nhóm danh mục */}
-                      <div className="space-y-0.5">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 font-medium">2. Nhóm DM:</span>
-                          {criteriaMatch?.groupMatch?.isSame ? (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
-                              ✓ Cùng nhóm
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
-                              ≠ Khác nhóm
-                            </span>
-                          )}
-                        </div>
-                        <div
-                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
-                          title={`Hiện tại: "${categoryGroup || 'Trống'}" ↔ SP này: "${sim.categoryGroup || 'Trống'}"`}
-                        >
-                          <span className="text-slate-400">SP này: </span>
-                          <span className={criteriaMatch?.groupMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                      {/* 2. Nhóm */}
+                      <div className="flex items-center justify-between gap-1.5 leading-tight">
+                        <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
+                        <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
+                          <span
+                            className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                              criteriaMatch?.groupMatch?.isSame
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                          </span>
+                          <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
                             {sim.categoryGroup || '(Chưa đặt)'}
                           </span>
                         </div>
                       </div>
 
-                      {/* Tiêu chí 3: Loại sản phẩm */}
-                      <div className="space-y-0.5">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 font-medium">3. Loại SP:</span>
-                          {criteriaMatch?.typeMatch?.isSame ? (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
-                              ✓ Cùng loại
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
-                              ≠ Khác loại
-                            </span>
-                          )}
-                        </div>
-                        <div
-                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
-                          title={`Hiện tại: "${categoryType || 'Trống'}" ↔ SP này: "${sim.categoryType || 'Trống'}"`}
-                        >
-                          <span className="text-slate-400">SP này: </span>
-                          <span className={criteriaMatch?.typeMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                      {/* 3. Loại */}
+                      <div className="flex items-center justify-between gap-1.5 leading-tight">
+                        <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
+                        <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
+                          <span
+                            className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                              criteriaMatch?.typeMatch?.isSame
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                          </span>
+                          <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
                             {sim.categoryType || '(Chưa đặt)'}
                           </span>
                         </div>
