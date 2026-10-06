@@ -67,7 +67,8 @@ function tokenize(text: string): Set<string> {
 export async function findSimilarProducts(
   target: Partial<Product>,
   catalog: Product[],
-  customApiKey?: string
+  customApiKey?: string,
+  limit: number = 30
 ): Promise<SimilarProductResult[]> {
   if (!catalog || catalog.length === 0) return [];
 
@@ -182,15 +183,20 @@ export async function findSimilarProducts(
     };
   });
 
-  // Sắp xếp điểm tương đồng giảm dần và lấy top 4
+  // Sắp xếp điểm tương đồng giảm dần
   scored.sort((a, b) => b.similarityScore - a.similarityScore);
-  const topSimilar = scored.slice(0, 4);
 
-  // Nâng cao bằng Gemini AI nếu có API Key
+  // Lọc lấy các sản phẩm có điểm tương đồng > 0 (khớp ít nhất 1 trong 3 tiêu chí)
+  const matched = scored.filter(s => s.similarityScore > 0);
+  const candidatesList = matched.length > 0 ? matched : scored;
+  const topSimilar = candidatesList.slice(0, Math.max(limit, 10));
+
+  // Nâng cao bằng Gemini AI cho top 6 sản phẩm đầu tiên (để prompt nhẹ, phản hồi tức thì)
   const apiKey = (customApiKey || getSavedGeminiKey()).trim();
-  if (apiKey && topSimilar.length > 0 && target.name) {
+  const topForAi = topSimilar.slice(0, 6);
+  if (apiKey && topForAi.length > 0 && target.name) {
     try {
-      const candidatesPrompt = topSimilar
+      const candidatesPrompt = topForAi
         .map(
           (s, idx) =>
             `ID_${idx}: Tên: "${s.product.name}", Nhóm: "${s.product.categoryGroup || ''}", Loại: "${s.product.categoryType || ''}"`

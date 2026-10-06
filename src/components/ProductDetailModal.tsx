@@ -61,12 +61,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
   const [showSimilarPanel, setShowSimilarPanel] = useState(true);
   const [similarPanelWidth, setSimilarPanelWidth] = useState<'normal' | 'wide'>('normal');
+  const [similarFilter, setSimilarFilter] = useState<'all' | 'type' | 'group' | 'name'>('all');
 
-  // Tự động tìm sản phẩm tương tự khi mở sản phẩm
+  // Tự động tìm sản phẩm tương tự khi mở sản phẩm (tăng giới hạn lên 40 sản phẩm)
   useEffect(() => {
     if (product && allProducts && allProducts.length > 0) {
       setIsLoadingSimilar(true);
-      findSimilarProducts(product, allProducts)
+      findSimilarProducts(product, allProducts, undefined, 40)
         .then(results => {
           setSimilarProducts(results);
         })
@@ -84,11 +85,24 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleRefreshSimilar = () => {
     if (!product || !allProducts || allProducts.length === 0) return;
     setIsLoadingSimilar(true);
-    findSimilarProducts(product, allProducts)
+    findSimilarProducts(product, allProducts, undefined, 40)
       .then(res => setSimilarProducts(res))
       .catch(e => console.warn(e))
       .finally(() => setIsLoadingSimilar(false));
   };
+
+  const displayedSimilarProducts = React.useMemo(() => {
+    if (similarFilter === 'type') {
+      return similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame);
+    }
+    if (similarFilter === 'group') {
+      return similarProducts.filter(s => s.criteriaMatch?.groupMatch?.isSame);
+    }
+    if (similarFilter === 'name') {
+      return similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20);
+    }
+    return similarProducts;
+  }, [similarProducts, similarFilter]);
 
   if (!product) return null;
 
@@ -174,6 +188,56 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
           </div>
 
+          {/* Thanh lọc nhanh tiêu chí khi có nhiều sản phẩm */}
+          {similarProducts.length > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-800 bg-slate-950/40 overflow-x-auto text-[10px] shrink-0">
+              <button
+                type="button"
+                onClick={() => setSimilarFilter('all')}
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                  similarFilter === 'all'
+                    ? 'bg-blue-600 text-white font-bold'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Tất cả ({similarProducts.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimilarFilter('type')}
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                  similarFilter === 'type'
+                    ? 'bg-emerald-600 text-white font-bold'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Cùng loại ({similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimilarFilter('group')}
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                  similarFilter === 'group'
+                    ? 'bg-indigo-600 text-white font-bold'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Cùng nhóm ({similarProducts.filter(s => s.criteriaMatch?.groupMatch?.isSame).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimilarFilter('name')}
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                  similarFilter === 'name'
+                    ? 'bg-purple-600 text-white font-bold'
+                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Khớp tên ({similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20).length})
+              </button>
+            </div>
+          )}
+
           {/* Body: Danh sách sản phẩm tương tự */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {isLoadingSimilar ? (
@@ -198,8 +262,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   Tìm lại
                 </button>
               </div>
+            ) : displayedSimilarProducts.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 space-y-2">
+                <p className="text-xs">Không có sản phẩm nào phù hợp với bộ lọc này.</p>
+                <button
+                  type="button"
+                  onClick={() => setSimilarFilter('all')}
+                  className="px-3 py-1 rounded-lg bg-slate-800 text-blue-300 text-xs hover:bg-slate-700 cursor-pointer"
+                >
+                  Hiển thị tất cả ({similarProducts.length})
+                </button>
+              </div>
             ) : (
-              similarProducts.map(({ product: sim, similarityScore, matchReasons, criteriaMatch }) => {
+              displayedSimilarProducts.map(({ product: sim, similarityScore, matchReasons, criteriaMatch }) => {
                 const isItemComparing = compareIds?.includes(sim.id);
                 return (
                   <div
