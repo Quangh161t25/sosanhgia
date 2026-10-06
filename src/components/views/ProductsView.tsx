@@ -16,6 +16,8 @@ import {
   X,
   AlertCircle,
   Upload,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -24,6 +26,8 @@ import { ColumnConfig } from './ColumnSettingsModal';
 import { ColumnOptionsPopover, TableDensity } from './ColumnOptionsPopover';
 import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
 import { ExcelImportModal } from '../ExcelImportModal';
+import { BatchCategoryModal } from '../modals/BatchCategoryModal';
+import { BatchSpecsModal } from '../modals/BatchSpecsModal';
 
 const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
 const DENSITY_STORAGE_KEY = 'procompare_table_density';
@@ -92,6 +96,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   // 1. CHỌN HÀNG LOẠT & ĐỒNG BỘ VỚI DANH SÁCH SO SÁNH
   const [selectedIds, setSelectedIds] = useState<string[]>(() => compareIds);
+  const [isBatchCategoryModalOpen, setIsBatchCategoryModalOpen] = useState(false);
+  const [isBatchSpecsModalOpen, setIsBatchSpecsModalOpen] = useState(false);
+
+  // Danh sách các đối tượng sản phẩm đang được tick chọn
+  const selectedProducts = useMemo(() => {
+    return products.filter(p => selectedIds.includes(p.id));
+  }, [products, selectedIds]);
 
   // Tự động đồng bộ selectedIds khi compareIds thay đổi từ Dock hoặc Matrix
   useEffect(() => {
@@ -396,10 +407,32 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           {/* VÙNG ĐIỀU KHIỂN SO SÁNH: ĐỦ 5 SP MỚI MỞ NÚT SO SÁNH */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {selectedIds.length > 0 && (
-              <div className="flex items-center gap-2 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
-                <span className="text-[11px] text-slate-600">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/90 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs">
+                <span className="text-[11px] text-slate-700 font-medium">
                   Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
                 </span>
+
+                {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
+                <button
+                  type="button"
+                  onClick={() => setIsBatchCategoryModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                  title="Dùng AI phân tích Tên & Mô tả để tự động sửa Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>AI Phân loại danh mục ({selectedIds.length})</span>
+                </button>
+
+                {/* Nút 2: Bóc tách thông số kỹ thuật bằng AI */}
+                <button
+                  type="button"
+                  onClick={() => setIsBatchSpecsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                  title="Dùng AI trích xuất bảng thông số kỹ thuật cho các sản phẩm đã chọn"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  <span>AI Bóc tách thông số ({selectedIds.length})</span>
+                </button>
 
                 {selectedIds.length > 5 && (
                   <button
@@ -1265,11 +1298,85 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       )}
 
+      {/* THANH TÁC VỤ HÀNG LOẠT NỔI Ở ĐÁY MÀN HÌNH (FLOATING BULK BAR CHUẨN ERP) */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 text-white backdrop-blur-md shadow-2xl rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 border border-slate-700/80 animate-in slide-in-from-bottom duration-200 max-w-[95vw]">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-xs font-semibold">
+              Đã chọn <strong className="text-blue-400 font-mono text-sm">{selectedIds.length}</strong> sản phẩm
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchCategoryModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Dùng AI chuẩn hóa Nhóm danh mục & Loại sản phẩm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>AI Phân loại danh mục</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBatchSpecsModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Dùng AI trích xuất bảng thông số kỹ thuật hàng loạt"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              <span>AI Bóc tách thông số</span>
+            </button>
+
+            {canCompare && (
+              <button
+                type="button"
+                onClick={onOpenCompare}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>So sánh ngay</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds([]);
+                onSetCompareProducts([]);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+            >
+              Bỏ chọn
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* MODAL LIÊN KẾT & ĐỒNG BỘ GOOGLE SHEET */}
       <GoogleSheetsSyncModal
         isOpen={isSheetsModalOpen}
         onClose={() => setIsSheetsModalOpen(false)}
         products={products}
+        onUpdateProducts={onUpdateProducts || (() => {})}
+      />
+
+      {/* MODAL PHÂN LOẠI DANH MỤC HÀNG LOẠT BẰNG AI */}
+      <BatchCategoryModal
+        isOpen={isBatchCategoryModalOpen}
+        onClose={() => setIsBatchCategoryModalOpen(false)}
+        selectedProducts={selectedProducts}
+        allProducts={products}
+        onUpdateProducts={onUpdateProducts || (() => {})}
+      />
+
+      {/* MODAL BÓC TÁCH THÔNG SỐ HÀNG LOẠT BẰNG AI */}
+      <BatchSpecsModal
+        isOpen={isBatchSpecsModalOpen}
+        onClose={() => setIsBatchSpecsModalOpen(false)}
+        selectedProducts={selectedProducts}
+        allProducts={products}
         onUpdateProducts={onUpdateProducts || (() => {})}
       />
 

@@ -44,6 +44,7 @@ import {
 } from '../utils/aiSpecParser';
 import { parseProductsFromRawRows, findBestProductSheet } from '../utils/excelParser';
 import { findSimilarProducts, SimilarProductResult } from '../utils/aiProductAdvisor';
+import { classifySingleCategory } from '../utils/aiCategoryAdvisor';
 
 interface ProductFormModalProps {
   productToEdit: Product | null;
@@ -168,6 +169,51 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [similarProducts, setSimilarProducts] = useState<SimilarProductResult[]>([]);
   const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
   const [showSimilarPanel, setShowSimilarPanel] = useState(true);
+
+  // AI Gợi ý phân loại danh mục & loại sản phẩm
+  const [isClassifyingCategory, setIsClassifyingCategory] = useState(false);
+  const [categoryAiMsg, setCategoryAiMsg] = useState<{ text: string; success: boolean } | null>(null);
+
+  const handleAiClassifyCategory = async () => {
+    if (!name.trim()) {
+      alert('Vui lòng nhập Tên sản phẩm trước để AI có cơ sở phân tích và gợi ý chuẩn xác.');
+      return;
+    }
+    setIsClassifyingCategory(true);
+    setCategoryAiMsg(null);
+    try {
+      const existingGroups = Array.from(
+        new Set((allProducts || []).map(p => p.categoryGroup).filter(Boolean) as string[])
+      );
+      const res = await classifySingleCategory(
+        { name, description },
+        existingGroups,
+        apiKey
+      );
+
+      setCategoryGroup(res.categoryGroup);
+      setCategoryType(res.categoryType);
+      setCategoryAiMsg({
+        text: `Đã cập nhật: [${res.categoryGroup}] › [${res.categoryType}] (${res.reason})`,
+        success: true,
+      });
+
+      // Kích hoạt tìm sản phẩm tương tự theo nhóm danh mục mới
+      handleFindSimilarProducts({
+        categoryGroup: res.categoryGroup,
+        categoryType: res.categoryType,
+        name,
+        description,
+      });
+    } catch (e: any) {
+      setCategoryAiMsg({
+        text: `Lỗi phân loại: ${e?.message || 'Không thể nhận diện'}`,
+        success: false,
+      });
+    } finally {
+      setIsClassifyingCategory(false);
+    }
+  };
 
   const handleFindSimilarProducts = async (explicitTarget?: Partial<Product>) => {
     if (!allProducts || allProducts.length === 0) return;
@@ -925,36 +971,78 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     />
                   </div>
 
-                  {/* Nhóm sản phẩm */}
-                  <div className="w-full">
-                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
-                      <span className="text-muted-foreground shrink-0">
-                        <Layers className="w-3 h-3" />
-                      </span>
-                      Nhóm danh mục
-                    </label>
-                    <input
-                      value={categoryGroup}
-                      onChange={e => setCategoryGroup(e.target.value)}
-                      placeholder="VD: Điện gia dụng, Dụng cụ cầm tay..."
-                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40"
-                    />
-                  </div>
+                  {/* Phân loại danh mục & Loại sản phẩm kết hợp AI */}
+                  <div className="w-full sm:col-span-2 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl p-3 shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Layers className="w-4 h-4 text-blue-600" />
+                        <span>Phân loại danh mục & Loại sản phẩm</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAiClassifyCategory}
+                        disabled={isClassifyingCategory}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                        title="Dựa vào tên và mô tả sản phẩm để AI tự động nhận diện Nhóm danh mục và Loại sản phẩm chính xác"
+                      >
+                        {isClassifyingCategory ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang phân tích...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                            <span>✨ AI Gợi ý phân loại</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
 
-                  {/* Loại sản phẩm */}
-                  <div className="w-full">
-                    <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1.5 text-muted-foreground">
-                      <span className="text-muted-foreground shrink-0">
-                        <Layers className="w-3 h-3" />
-                      </span>
-                      Loại sản phẩm
-                    </label>
-                    <input
-                      value={categoryType}
-                      onChange={e => setCategoryType(e.target.value)}
-                      placeholder="VD: Nồi chiên không dầu, Robot hút bụi..."
-                      className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40"
-                    />
+                    {categoryAiMsg && (
+                      <div
+                        className={`text-[11px] p-2 rounded-lg mb-2.5 flex items-center gap-2 ${
+                          categoryAiMsg.success
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-800 border border-rose-200'
+                        }`}
+                      >
+                        {categoryAiMsg.success ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        )}
+                        <span className="leading-tight">{categoryAiMsg.text}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1 text-slate-700">
+                          Nhóm danh mục
+                          <span className="text-[10px] text-slate-400 font-normal">(VD: Đồ dùng nhà bếp, Điện gia dụng...)</span>
+                        </label>
+                        <input
+                          value={categoryGroup}
+                          onChange={e => setCategoryGroup(e.target.value)}
+                          placeholder="VD: Đồ dùng nhà bếp..."
+                          className="flex h-9 w-full rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium leading-none mb-1.5 flex items-center gap-1 text-slate-700">
+                          Loại sản phẩm
+                          <span className="text-[10px] text-slate-400 font-normal">(VD: Bộ nồi inox, Nồi chiên không dầu...)</span>
+                        </label>
+                        <input
+                          value={categoryType}
+                          onChange={e => setCategoryType(e.target.value)}
+                          placeholder="VD: Bộ nồi inox..."
+                          className="flex h-9 w-full rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 font-medium"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Bảo hành (tháng) */}
