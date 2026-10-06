@@ -18,6 +18,7 @@ import {
   Upload,
   Sparkles,
   Zap,
+  ChevronDown,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -31,6 +32,7 @@ import { BatchSpecsModal } from '../modals/BatchSpecsModal';
 
 const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
 const DENSITY_STORAGE_KEY = 'procompare_table_density';
+const PAGE_SIZE_STORAGE_KEY = 'procompare_page_size';
 
 export const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'checkbox', label: 'Hộp kiểm', visible: true, pinned: true, align: 'center', wrap: false, width: 48 },
@@ -103,6 +105,31 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const selectedProducts = useMemo(() => {
     return products.filter(p => selectedIds.includes(p.id));
   }, [products, selectedIds]);
+
+  // PHÂN TRANG (PAGINATION)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+      if (saved) {
+        const parsed = Number(saved);
+        if (!isNaN(parsed)) return parsed;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return 100;
+  });
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    try {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(newSize));
+    } catch (e) {
+      // Ignore
+    }
+  };
 
   // Tự động đồng bộ selectedIds khi compareIds thay đổi từ Dock hoặc Matrix
   useEffect(() => {
@@ -258,20 +285,70 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     });
   }, [products, searchQuery, selectedBrand, selectedGroup, selectedType]);
 
-  // TÍCH CHỌN HÀNG LOẠT (HỘP KIỂM CHO PHÉP CHỌN HẾT)
+  // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm hoặc lọc
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedBrand, selectedGroup, selectedType]);
+
+  // Tổng số trang
+  const totalPages = useMemo(() => {
+    if (pageSize === -1) return 1;
+    return Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  }, [filteredProducts.length, pageSize]);
+
+  // Đảm bảo currentPage không vượt quá totalPages
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // Cắt danh sách sản phẩm theo trang hiện tại (Pagination slicing)
+  const paginatedProducts = useMemo(() => {
+    if (pageSize === -1) return filteredProducts;
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
+
+  // Thống kê hiển thị
+  const totalFilteredCount = filteredProducts.length;
+  const startIndex = totalFilteredCount === 0 ? 0 : (currentPage - 1) * (pageSize === -1 ? totalFilteredCount : pageSize) + 1;
+  const endIndex = pageSize === -1 ? totalFilteredCount : Math.min(currentPage * pageSize, totalFilteredCount);
+
+  // Sinh dãy số trang hiển thị thông minh (tối đa 5 số như trong ảnh)
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + 4);
+    if (end - start < 4) {
+      start = Math.max(1, end - 4);
+    }
+    const list: number[] = [];
+    for (let i = start; i <= end; i++) {
+      list.push(i);
+    }
+    return list;
+  }, [currentPage, totalPages]);
+
+  // TÍCH CHỌN HÀNG LOẠT (HỘP KIỂM CHO PHÉP CHỌN HẾT TRANG HIỆN TẠI)
   const isAllSelected =
-    filteredProducts.length > 0 &&
-    filteredProducts.every(p => selectedIds.includes(p.id));
+    paginatedProducts.length > 0 &&
+    paginatedProducts.every(p => selectedIds.includes(p.id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
-      setSelectedIds([]);
-      onSetCompareProducts([]);
+      const pageIds = new Set(paginatedProducts.map(p => p.id));
+      setSelectedIds(prev => prev.filter(id => !pageIds.has(id)));
+      onSetCompareProducts(compareIds.filter(id => !pageIds.has(id)));
     } else {
-      const allIds = filteredProducts.map(p => p.id);
-      setSelectedIds(allIds);
-      // Đưa 5 sản phẩm đầu vào danh sách so sánh
-      onSetCompareProducts(allIds.slice(0, 5));
+      const pageIds = paginatedProducts.map(p => p.id);
+      const combined = Array.from(new Set([...selectedIds, ...pageIds]));
+      setSelectedIds(combined);
+      if (compareIds.length === 0) {
+        onSetCompareProducts(combined.slice(0, 5));
+      }
     }
   };
 
@@ -386,10 +463,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   }, [density]);
 
   return (
-    <div className="w-full px-4 sm:px-6 py-4 space-y-4">
+    <div className="w-full h-full flex flex-col min-h-0 px-3 sm:px-6 py-2.5 space-y-2.5 overflow-hidden">
       
-      {/* KHUNG TRÊN: TAP NHỎ + LỌC (Hợp nhất theo layout chuẩn, bỏ overflow-hidden để popover không bị lấp) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs relative z-10">
+      {/* KHUNG TRÊN: TIÊU ĐỀ + BỘ LỌC (CỐ ĐỊNH TRÊN CÙNG KHI LĂN CHUỘT) */}
+      <div className="shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs relative z-20">
         
         {/* Hàng 1: Tabs nhỏ + Bộ điều khiển so sánh (Đủ 5 sản phẩm mới so sánh) */}
         <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
@@ -400,7 +477,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               Sản phẩm
             </span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {filteredProducts.length} sản phẩm
+              {totalFilteredCount} sản phẩm
             </span>
           </div>
 
@@ -671,17 +748,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       </div>
 
-      {/* KHUNG DƯỚI: DANH SÁCH SẢN PHẨM (BẢNG DỮ LIỆU FULL WIDTH + KÉO CHỈNH CỘT TRÊN WEB) */}
+      {/* KHUNG DƯỚI: DANH SÁCH SẢN PHẨM (BẢNG DỮ LIỆU FULL WIDTH + CỐ ĐỊNH TIÊU ĐỀ CỘT KHI LĂN) */}
       {viewMode === 'table' ? (
-        <div className="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="w-full overflow-x-auto">
+        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="w-full flex-1 min-h-0 overflow-auto custom-scrollbar">
             <table
               style={{ width: `${totalTableWidth}px`, minWidth: '100%' }}
               className="table-fixed text-left text-xs border-collapse"
             >
               
-              {/* Header bảng dữ liệu có hỗ trợ KÉO CHỈNH ĐỘ RỘNG TRỰC TIẾP */}
-              <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-semibold select-none">
+              {/* Header bảng dữ liệu cố định trên cùng khi lăn chuột */}
+              <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold select-none shadow-[0_1px_2px_0_rgba(0,0,0,0.06)]">
                 <tr>
                   {visibleColumns.map(col => {
                     const isPinned = col.pinned;
@@ -694,12 +771,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         ? 'text-right'
                         : 'text-left';
 
-                    const stickyClass = isPinned
-                      ? `sticky z-20 bg-slate-100/95 backdrop-blur-xs ${
-                          isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''
-                        }`
-                      : 'bg-slate-50/90';
-
                     if (col.id === 'checkbox') {
                       return (
                         <th
@@ -708,15 +779,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             width: `${col.width}px`,
                             minWidth: `${col.width}px`,
                             maxWidth: `${col.width}px`,
+                            top: 0,
                             ...(isPinned ? { left: `${leftOffset}px` } : {}),
                           }}
-                          className={`${cellPaddingClass} w-12 text-center relative group select-none ${stickyClass} border-r border-slate-200 last:border-r-0`}
+                          className={`${cellPaddingClass} w-12 text-center relative group select-none sticky top-0 z-30 bg-slate-100/95 backdrop-blur-xs border-r border-slate-200 last:border-r-0`}
                         >
                           <input
                             type="checkbox"
                             checked={isAllSelected}
                             onChange={toggleSelectAll}
-                            title="Chọn tất cả / Bỏ chọn tất cả"
+                            title="Chọn tất cả trên trang này / Bỏ chọn"
                             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
                           {/* Tay cầm kéo độ rộng cột */}
@@ -736,9 +808,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           width: `${col.width}px`,
                           minWidth: `${col.width}px`,
                           maxWidth: `${col.width}px`,
+                          top: 0,
                           ...(isPinned ? { left: `${leftOffset}px` } : {}),
                         }}
-                        className={`${cellPaddingClass} relative group select-none ${alignClass} ${stickyClass} border-r border-slate-200 last:border-r-0`}
+                        className={`${cellPaddingClass} relative group select-none ${alignClass} sticky top-0 ${
+                          isPinned
+                            ? `z-30 bg-slate-100/95 backdrop-blur-xs ${
+                                isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''
+                              }`
+                            : 'z-20 bg-slate-50/95'
+                        } border-r border-slate-200 last:border-r-0`}
                       >
                         <span className="truncate block pr-1.5 font-semibold text-slate-700">{col.label}</span>
 
@@ -756,17 +835,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
               {/* Dòng dữ liệu sản phẩm có đường kẻ dọc và ngang rõ ràng */}
               <tbody className="divide-y divide-slate-200">
-                {filteredProducts.length === 0 ? (
+                {paginatedProducts.length === 0 ? (
                   <tr>
                     <td colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
                       Không tìm thấy sản phẩm nào khớp với tiêu chí tìm kiếm
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((prod, idx) => {
+                  paginatedProducts.map((prod, idx) => {
                     const financials = calculateFinancials(prod.pricing);
                     const isSelected = selectedIds.includes(prod.id);
-                    const colorBg = avatarColors[idx % avatarColors.length];
+                    const globalIdx = (currentPage - 1) * (pageSize === -1 ? 0 : pageSize) + idx;
+                    const colorBg = avatarColors[globalIdx % avatarColors.length];
                     const totalSpecsCount = prod.specifications.reduce((a, b) => a + b.items.length, 0);
 
                     return (
@@ -1236,45 +1316,106 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </table>
           </div>
 
-          {/* Phân trang chân bảng */}
-          <div className="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <span>
-                Hiển thị <strong>1-{filteredProducts.length}</strong> / Tổng <strong>{products.length}</strong> sản phẩm
-              </span>
-              <span>&bull;</span>
-              <span>50 / trang</span>
+          {/* Phân trang chân bảng chuẩn theo thiết kế */}
+          <div className="shrink-0 px-4 py-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/95 select-none">
+            {/* Bên trái: Hiển thị 1 - 100 / 3.721 dòng | Cỡ trang: [ 100 dòng  v ] */}
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+              <div className="flex items-center gap-1 text-slate-600">
+                <span>Hiển thị</span>
+                <strong className="text-slate-900 font-bold">
+                  {totalFilteredCount === 0 ? '0 - 0' : `${startIndex} - ${endIndex}`}
+                </strong>
+                <span>/</span>
+                <strong className="text-slate-900 font-bold">
+                  {totalFilteredCount.toLocaleString('vi-VN')}
+                </strong>
+                <span>dòng</span>
+              </div>
+
+              <span className="text-slate-300">|</span>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600">Cỡ trang:</span>
+                <div className="relative inline-block">
+                  <select
+                    value={pageSize}
+                    onChange={e => handlePageSizeChange(Number(e.target.value))}
+                    className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-7 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={20}>20 dòng</option>
+                    <option value={50}>50 dòng</option>
+                    <option value={100}>100 dòng</option>
+                    <option value={200}>200 dòng</option>
+                    <option value={500}>500 dòng</option>
+                    <option value={-1}>Tất cả</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1 select-none">
+            {/* Bên phải: [ Trang  <<  <  1  2  3  4  5  >  >> ] */}
+            <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden text-xs">
+              <span className="px-2.5 py-1 text-slate-600 font-medium bg-slate-50/70 border-r border-slate-200">
+                Trang
+              </span>
+
+              {/* Nút << */}
               <button
                 type="button"
-                disabled
-                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage <= 1}
+                title="Trang đầu tiên"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
               >
                 &laquo;
               </button>
+
+              {/* Nút < */}
               <button
                 type="button"
-                disabled
-                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage <= 1}
+                title="Trang trước"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
               >
                 &lsaquo;
               </button>
-              <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-bold text-xs">
-                1
-              </span>
+
+              {/* Danh sách các số trang */}
+              {pageNumbers.map(page => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 font-semibold border-r border-slate-200 transition-colors cursor-pointer ${
+                    currentPage === page
+                      ? 'bg-blue-50 text-blue-600 font-bold'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              {/* Nút > */}
               <button
                 type="button"
-                disabled
-                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                title="Trang sau"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
               >
                 &rsaquo;
               </button>
+
+              {/* Nút >> */}
               <button
                 type="button"
-                disabled
-                className="px-2 py-1 rounded border border-slate-200 text-slate-300 cursor-not-allowed text-xs"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage >= totalPages}
+                title="Trang cuối cùng"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
               >
                 &raquo;
               </button>
@@ -1283,18 +1424,114 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       ) : (
         /* Dạng thẻ Cards */
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {filteredProducts.map(product => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              isSelectedForCompare={compareIds.includes(product.id)}
-              onToggleCompare={() => toggleSelectRow(product.id)}
-              onViewDetail={onViewDetail}
-              onEditProduct={onEditProduct}
-              showCostPrice={showCostPrice}
-            />
-          ))}
+        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {paginatedProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  isSelectedForCompare={compareIds.includes(product.id)}
+                  onToggleCompare={() => toggleSelectRow(product.id)}
+                  onViewDetail={onViewDetail}
+                  onEditProduct={onEditProduct}
+                  showCostPrice={showCostPrice}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Phân trang chân bảng cho dạng thẻ */}
+          <div className="shrink-0 px-4 py-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/95 select-none">
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+              <div className="flex items-center gap-1 text-slate-600">
+                <span>Hiển thị</span>
+                <strong className="text-slate-900 font-bold">
+                  {totalFilteredCount === 0 ? '0 - 0' : `${startIndex} - ${endIndex}`}
+                </strong>
+                <span>/</span>
+                <strong className="text-slate-900 font-bold">
+                  {totalFilteredCount.toLocaleString('vi-VN')}
+                </strong>
+                <span>dòng</span>
+              </div>
+              <span className="text-slate-300">|</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600">Cỡ trang:</span>
+                <div className="relative inline-block">
+                  <select
+                    value={pageSize}
+                    onChange={e => handlePageSizeChange(Number(e.target.value))}
+                    className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-7 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={20}>20 dòng</option>
+                    <option value={50}>50 dòng</option>
+                    <option value={100}>100 dòng</option>
+                    <option value={200}>200 dòng</option>
+                    <option value={500}>500 dòng</option>
+                    <option value={-1}>Tất cả</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden text-xs">
+              <span className="px-2.5 py-1 text-slate-600 font-medium bg-slate-50/70 border-r border-slate-200">
+                Trang
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage <= 1}
+                title="Trang đầu tiên"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+              >
+                &laquo;
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage <= 1}
+                title="Trang trước"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+              >
+                &lsaquo;
+              </button>
+              {pageNumbers.map(page => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 font-semibold border-r border-slate-200 transition-colors cursor-pointer ${
+                    currentPage === page
+                      ? 'bg-blue-50 text-blue-600 font-bold'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                title="Trang sau"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-r border-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+              >
+                &rsaquo;
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage >= totalPages}
+                title="Trang cuối cùng"
+                className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+              >
+                &raquo;
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

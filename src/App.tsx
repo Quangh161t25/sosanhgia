@@ -645,7 +645,7 @@ export default function App() {
         />
 
         {/* Scrollable View Area */}
-        <main className={`flex-1 min-w-0 ${currentTab === 'compare' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
+        <main className={`flex-1 min-w-0 ${currentTab === 'compare' || currentTab === 'products' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
           {currentTab === 'home' && (
             <HomeView
               onSelectTab={setCurrentTab}
