@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, SpecGroup } from '../types/product';
 import {
   X,
@@ -186,6 +186,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     }
     return similarProducts;
   }, [similarProducts, similarFilter]);
+
+  // Danh sách gợi ý sẵn có trong kho (Sắp xếp A-Z chuẩn Tiếng Việt)
+  const existingBrands = useMemo<string[]>(() => {
+    return Array.from(new Set((allProducts || []).map(p => p.brand?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+      a.localeCompare(b, 'vi', { sensitivity: 'base' })
+    );
+  }, [allProducts]);
+
+  const existingGroups = useMemo<string[]>(() => {
+    return Array.from(new Set((allProducts || []).map(p => p.categoryGroup?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+      a.localeCompare(b, 'vi', { sensitivity: 'base' })
+    );
+  }, [allProducts]);
+
+  const existingTypes = useMemo<string[]>(() => {
+    return Array.from(new Set((allProducts || []).map(p => p.categoryType?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+      a.localeCompare(b, 'vi', { sensitivity: 'base' })
+    );
+  }, [allProducts]);
 
   // AI Gợi ý phân loại danh mục & loại sản phẩm
   const [isClassifyingCategory, setIsClassifyingCategory] = useState(false);
@@ -535,8 +554,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     panelWidth === 'narrow'
       ? 'min(540px, 100vw)'
       : panelWidth === 'wide'
-      ? 'min(1100px, 100vw)'
-      : 'min(768px, -4rem + 100vw)';
+      ? 'min(1360px, 100vw)'
+      : 'min(860px, -4rem + 100vw)';
 
   return (
     <>
@@ -553,7 +572,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           aria-label="Sản phẩm tương tự AI"
           className={`fixed inset-y-0 left-0 hidden md:flex flex-col ${
             similarPanelWidth === 'wide'
-              ? 'w-[450px] lg:w-[480px] xl:w-[520px] 2xl:w-[560px]'
+              ? 'w-[580px] md:w-[640px] lg:w-[700px] xl:w-[780px] 2xl:w-[860px] max-w-[95vw]'
               : 'w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[400px]'
           } bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden transition-all`}
         >
@@ -591,7 +610,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={handleFindSimilarProducts}
+                onClick={() => handleFindSimilarProducts()}
                 disabled={isLoadingSimilar}
                 className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title="Quét lại sản phẩm tương tự bằng AI"
@@ -677,7 +696,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <p className="text-xs">Chưa tìm thấy sản phẩm cùng phân khúc trong kho.</p>
                 <button
                   type="button"
-                  onClick={handleFindSimilarProducts}
+                  onClick={() => handleFindSimilarProducts()}
                   className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-xs font-semibold cursor-pointer"
                 >
                   Tìm lại
@@ -714,126 +733,258 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </span>
                     </div>
 
-                    {/* Giữa: Ảnh + Tên */}
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
-                        <img
-                          src={sim.thumbnail}
-                          alt={sim.name}
-                          loading="lazy"
-                          className="max-h-full max-w-full object-contain"
-                          onError={e => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
-                          }}
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
-                          {sim.name}
-                        </h5>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
-                          <span className="text-slate-300 font-medium">{sim.brand || 'Chưa rõ hãng'}</span>
-                          {sim.categoryType && (
-                            <>
-                              <span>•</span>
-                              <span className="text-slate-400 truncate max-w-[120px]">{sim.categoryType}</span>
-                            </>
+                    {/* Thân thẻ: Khi mở rộng (wide), tiêu chí nằm cạnh tên; khi thu gọn (normal), xếp dọc */}
+                    {similarPanelWidth === 'wide' ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                        {/* Cột trái: Ảnh + Tên + Hãng/Loại + Giá */}
+                        <div className="sm:col-span-6 space-y-2 min-w-0">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                              <img
+                                src={sim.thumbnail}
+                                alt={sim.name}
+                                loading="lazy"
+                                className="max-h-full max-w-full object-contain"
+                                onError={e => {
+                                  (e.currentTarget as HTMLImageElement).src =
+                                    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                }}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
+                                {sim.name}
+                              </h5>
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
+                                <span className="text-slate-300 font-medium">{sim.brand || 'Chưa rõ hãng'}</span>
+                                {sim.categoryType && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-400 truncate max-w-[140px]">{sim.categoryType}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Giá tham chiếu */}
+                          <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-slate-700/60 bg-slate-900/40 p-1.5 rounded-lg">
+                            <div>
+                              <span className="text-slate-400 block text-[9px]">Giá NPP:</span>
+                              <span className="font-mono font-bold text-blue-300">{formatVND(sim.pricing?.distributorPrice || 0)}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-slate-400 block text-[9px]">LN gộp:</span>
+                              <span className="font-mono font-bold text-emerald-400">+{f.grossMarginPercent}%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Cột phải: BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ NẰM CẠNH TÊN */}
+                        <div className="sm:col-span-6 space-y-1.5">
+                          <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
+                              <span className="font-semibold text-slate-300 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-blue-400" />
+                                Đối chiếu 3 tiêu chí
+                              </span>
+                              <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
+                            </div>
+
+                            {/* 1. Tên */}
+                            <div className="flex items-center justify-between gap-1.5 leading-tight">
+                              <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
+                                <span>1. Tên:</span>
+                                <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
+                              </div>
+                              <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
+                                {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
+                                  <span className="text-emerald-300 font-medium truncate">
+                                    ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 italic">Khác từ khóa</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 2. Nhóm */}
+                            <div className="flex items-center justify-between gap-1.5 leading-tight">
+                              <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
+                              <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
+                                <span
+                                  className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                                    criteriaMatch?.groupMatch?.isSame
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                  }`}
+                                >
+                                  {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                                </span>
+                                <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                                  {sim.categoryGroup || '(Chưa đặt)'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 3. Loại */}
+                            <div className="flex items-center justify-between gap-1.5 leading-tight">
+                              <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
+                              <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
+                                <span
+                                  className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                                    criteriaMatch?.typeMatch?.isSame
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                  }`}
+                                >
+                                  {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                                </span>
+                                <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                                  {sim.categoryType || '(Chưa đặt)'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Nút tác vụ Đồng bộ Nhóm & Loại */}
+                          {(!criteriaMatch?.groupMatch?.isSame || !criteriaMatch?.typeMatch?.isSame) && (sim.categoryGroup || sim.categoryType) && (
+                            <button
+                              type="button"
+                              onClick={() => handleApplyCategoryFromSimilar(sim)}
+                              className="w-full py-1 px-2 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/40 text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              title="Sao chép Nhóm danh mục và Loại sản phẩm từ SP này vào form đang sửa"
+                            >
+                              <Layers className="w-3 h-3 text-indigo-400" />
+                              <span>Đồng bộ Nhóm & Loại sang form</span>
+                            </button>
                           )}
                         </div>
                       </div>
-                    </div>
-
-                    {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ SIÊU GỌN */}
-                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
-                      <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
-                        <span className="font-semibold text-slate-300 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-blue-400" />
-                          Đối chiếu 3 tiêu chí
-                        </span>
-                        <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
-                      </div>
-
-                      {/* 1. Tên */}
-                      <div className="flex items-center justify-between gap-1.5 leading-tight">
-                        <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
-                          <span>1. Tên:</span>
-                          <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
+                    ) : (
+                      <>
+                        {/* Giữa: Ảnh + Tên (chế độ bình thường) */}
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                            <img
+                              src={sim.thumbnail}
+                              alt={sim.name}
+                              loading="lazy"
+                              className="max-h-full max-w-full object-contain"
+                              onError={e => {
+                                (e.currentTarget as HTMLImageElement).src =
+                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                              }}
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
+                              {sim.name}
+                            </h5>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
+                              <span className="text-slate-300 font-medium">{sim.brand || 'Chưa rõ hãng'}</span>
+                              {sim.categoryType && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-400 truncate max-w-[120px]">{sim.categoryType}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
-                          {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
-                            <span className="text-emerald-300 font-medium truncate">
-                              ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
+
+                        {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ SIÊU GỌN */}
+                        <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
+                            <span className="font-semibold text-slate-300 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-blue-400" />
+                              Đối chiếu 3 tiêu chí
                             </span>
-                          ) : (
-                            <span className="text-slate-500 italic">Khác từ khóa</span>
-                          )}
-                        </div>
-                      </div>
+                            <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
+                          </div>
 
-                      {/* 2. Nhóm */}
-                      <div className="flex items-center justify-between gap-1.5 leading-tight">
-                        <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
-                        <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
-                          <span
-                            className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
-                              criteriaMatch?.groupMatch?.isSame
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                            }`}
+                          {/* 1. Tên */}
+                          <div className="flex items-center justify-between gap-1.5 leading-tight">
+                            <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
+                              <span>1. Tên:</span>
+                              <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
+                            </div>
+                            <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
+                              {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
+                                <span className="text-emerald-300 font-medium truncate">
+                                  ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 italic">Khác từ khóa</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Nhóm */}
+                          <div className="flex items-center justify-between gap-1.5 leading-tight">
+                            <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
+                            <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
+                              <span
+                                className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                                  criteriaMatch?.groupMatch?.isSame
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                              </span>
+                              <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                                {sim.categoryGroup || '(Chưa đặt)'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 3. Loại */}
+                          <div className="flex items-center justify-between gap-1.5 leading-tight">
+                            <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
+                            <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
+                              <span
+                                className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                                  criteriaMatch?.typeMatch?.isSame
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
+                              </span>
+                              <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                                {sim.categoryType || '(Chưa đặt)'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nút tác vụ Đồng bộ Nhóm & Loại */}
+                        {(!criteriaMatch?.groupMatch?.isSame || !criteriaMatch?.typeMatch?.isSame) && (sim.categoryGroup || sim.categoryType) && (
+                          <button
+                            type="button"
+                            onClick={() => handleApplyCategoryFromSimilar(sim)}
+                            className="w-full py-1 px-2 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/40 text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                            title="Sao chép Nhóm danh mục và Loại sản phẩm từ SP này vào form đang sửa"
                           >
-                            {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
-                          </span>
-                          <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
-                            {sim.categoryGroup || '(Chưa đặt)'}
-                          </span>
-                        </div>
-                      </div>
+                            <Layers className="w-3 h-3 text-indigo-400" />
+                            <span>Đồng bộ Nhóm & Loại sang form</span>
+                          </button>
+                        )}
 
-                      {/* 3. Loại */}
-                      <div className="flex items-center justify-between gap-1.5 leading-tight">
-                        <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
-                        <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
-                          <span
-                            className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
-                              criteriaMatch?.typeMatch?.isSame
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
-                          </span>
-                          <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
-                            {sim.categoryType || '(Chưa đặt)'}
-                          </span>
+                        {/* Giá tham chiếu */}
+                        <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-slate-700/60">
+                          <div>
+                            <span className="text-slate-400 block">Giá NPP:</span>
+                            <span className="font-mono font-bold text-blue-300">{formatVND(sim.pricing?.distributorPrice || 0)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-slate-400 block">LN gộp:</span>
+                            <span className="font-mono font-bold text-emerald-400">+{f.grossMarginPercent}%</span>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Nút tác vụ Đồng bộ Nhóm & Loại */}
-                    {(!criteriaMatch?.groupMatch?.isSame || !criteriaMatch?.typeMatch?.isSame) && (sim.categoryGroup || sim.categoryType) && (
-                      <button
-                        type="button"
-                        onClick={() => handleApplyCategoryFromSimilar(sim)}
-                        className="w-full py-1 px-2 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/40 text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                        title="Sao chép Nhóm danh mục và Loại sản phẩm từ SP này vào form đang sửa"
-                      >
-                        <Layers className="w-3 h-3 text-indigo-400" />
-                        <span>Đồng bộ Nhóm & Loại sang form</span>
-                      </button>
+                      </>
                     )}
-
-                    {/* Giá tham chiếu */}
-                    <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-slate-700/60">
-                      <div>
-                        <span className="text-slate-400 block">Giá NPP:</span>
-                        <span className="font-mono font-bold text-blue-300">{formatVND(sim.pricing?.distributorPrice || 0)}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-400 block">LN gộp:</span>
-                        <span className="font-mono font-bold text-emerald-400">+{f.grossMarginPercent}%</span>
-                      </div>
-                    </div>
 
                     {/* Nút tác vụ nhanh: Chép thông số, Tham khảo giá */}
                     <div className="grid grid-cols-2 gap-1.5 pt-0.5">
@@ -1163,9 +1314,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <input
                       value={brand}
                       onChange={e => setBrand(e.target.value)}
+                      list="form-brand-suggestions"
                       placeholder="VD: AeroChef, PowerTorq, RoboMaster..."
                       className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 placeholder:text-muted-foreground/60 placeholder:italic"
                     />
+                    <datalist id="form-brand-suggestions">
+                      {existingBrands.map(b => (
+                        <option key={b} value={b} />
+                      ))}
+                    </datalist>
                   </div>
 
                   {/* Phân loại danh mục & Loại sản phẩm kết hợp AI */}
@@ -1222,9 +1379,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <input
                           value={categoryGroup}
                           onChange={e => setCategoryGroup(e.target.value)}
+                          list="form-group-suggestions"
                           placeholder="VD: Đồ dùng nhà bếp..."
                           className="flex h-9 w-full rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 font-medium"
                         />
+                        <datalist id="form-group-suggestions">
+                          {existingGroups.map(g => (
+                            <option key={g} value={g} />
+                          ))}
+                        </datalist>
                       </div>
 
                       <div>
@@ -1235,9 +1398,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <input
                           value={categoryType}
                           onChange={e => setCategoryType(e.target.value)}
+                          list="form-type-suggestions"
                           placeholder="VD: Bộ nồi inox..."
                           className="flex h-9 w-full rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 font-medium"
                         />
+                        <datalist id="form-type-suggestions">
+                          {existingTypes.map(t => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
                       </div>
                     </div>
                   </div>

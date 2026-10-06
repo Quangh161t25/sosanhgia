@@ -125,3 +125,18 @@ export function findSpecValue(product: Product, groupName: string, specKey: stri
   if (!group) return undefined;
   return group.items.find(i => i.key.toLowerCase() === specKey.toLowerCase());
 }
+
+/**
+ * Chuẩn hóa chuỗi tiếng Việt thành không dấu để tìm kiếm thông minh
+ */
+export function removeVietnameseTones(str: string): string {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+

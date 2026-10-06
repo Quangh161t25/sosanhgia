@@ -80,12 +80,13 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
   const [quickGroup, setQuickGroup] = useState('');
   const [quickType, setQuickType] = useState('');
 
-  // Danh sách các nhóm hiện có
+  // Danh sách các nhóm hiện có (Sắp xếp A-Z)
   const existingGroups = useMemo(() => {
     const list = Array.from(
       new Set(allProducts.map(p => p.categoryGroup).filter(Boolean) as string[])
     );
-    return list.length > 0 ? list : STANDARD_GROUPS;
+    const base = list.length > 0 ? list : STANDARD_GROUPS;
+    return base.slice().sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
   }, [allProducts]);
 
   // Khởi tạo trạng thái khi mở modal

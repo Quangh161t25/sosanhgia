@@ -409,7 +409,7 @@ export default function App() {
         'Nhóm danh mục': p.categoryGroup,
         'Loại sản phẩm': p.categoryType,
         'Thời hạn BH (tháng)': p.warrantyMonths || 12,
-        '1. Giá nhập (VND)': p.pricing.costPrice,
+        ...(showCostPrice ? { '1. Giá nhập (VND)': p.pricing.costPrice } : {}),
         '2. Giá NPP (VND)': p.pricing.distributorPrice,
         '3. Giá sàn (VND)': p.pricing.floorPrice,
         '4. Giá bán lẻ (VND)': p.pricing.retailPrice,

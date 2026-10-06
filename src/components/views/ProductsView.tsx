@@ -22,9 +22,10 @@ import {
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
-import { calculateFinancials, formatVND } from '../../utils/pricing';
+import { calculateFinancials, formatVND, removeVietnameseTones } from '../../utils/pricing';
 import { ColumnConfig } from './ColumnSettingsModal';
 import { ColumnOptionsPopover, TableDensity } from './ColumnOptionsPopover';
+import { SearchableFilterSelect } from './SearchableFilterSelect';
 import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
 import { ExcelImportModal } from '../ExcelImportModal';
 import { BatchCategoryModal } from '../modals/BatchCategoryModal';
@@ -242,34 +243,75 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Danh sách Thương hiệu, Nhóm và Loại duy nhất
+  // Danh sách Thương hiệu, Nhóm và Loại duy nhất - SẮP XẾP A-Z
   const brands = useMemo(() => {
     const list = products
       .map(p => p.brand?.trim())
       .filter((b): b is string => Boolean(b && b.length > 0));
-    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'vi'));
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
   }, [products]);
 
   const categoryGroups = useMemo(() => {
-    return Array.from(new Set(products.map(p => p.categoryGroup))).filter(Boolean);
+    const list = products
+      .map(p => p.categoryGroup?.trim())
+      .filter((g): g is string => Boolean(g && g.length > 0));
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
   }, [products]);
 
   const categoryTypes = useMemo(() => {
-    return Array.from(new Set(products.map(p => p.categoryType))).filter(Boolean);
+    const list = products
+      .map(p => p.categoryType?.trim())
+      .filter((t): t is string => Boolean(t && t.length > 0));
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
   }, [products]);
 
-  // Bộ lọc sản phẩm
+  // Đếm số lượng sản phẩm theo từng tiêu chí
+  const brandCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach(p => {
+      const b = p.brand?.trim();
+      if (b) counts[b] = (counts[b] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach(p => {
+      const g = p.categoryGroup?.trim();
+      if (g) counts[g] = (counts[g] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach(p => {
+      const t = p.categoryType?.trim();
+      if (t) counts[t] = (counts[t] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  // Bộ lọc sản phẩm (hỗ trợ tìm kiếm tiếng Việt không dấu)
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchSku = p.sku.toLowerCase().includes(q);
-        const matchName = p.name.toLowerCase().includes(q);
-        const matchBrand = p.brand ? p.brand.toLowerCase().includes(q) : false;
-        const matchNotes = p.notes ? p.notes.toLowerCase().includes(q) : false;
+        const rawQ = searchQuery.toLowerCase().trim();
+        const cleanQ = removeVietnameseTones(searchQuery);
+
+        const checkMatch = (val?: string) => {
+          if (!val) return false;
+          return val.toLowerCase().includes(rawQ) || removeVietnameseTones(val).includes(cleanQ);
+        };
+
+        const matchSku = checkMatch(p.sku);
+        const matchName = checkMatch(p.name);
+        const matchBrand = checkMatch(p.brand);
+        const matchNotes = checkMatch(p.notes);
         const matchSpecs = p.specifications.some(sg =>
           sg.items.some(
-            i => i.key.toLowerCase().includes(q) || i.value.toLowerCase().includes(q)
+            i => checkMatch(i.key) || checkMatch(i.value)
           )
         );
         if (!matchSku && !matchName && !matchBrand && !matchNotes && !matchSpecs) {
@@ -278,8 +320,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       }
 
       if (selectedBrand && (!p.brand || p.brand.trim().toLowerCase() !== selectedBrand.trim().toLowerCase())) return false;
-      if (selectedGroup && p.categoryGroup !== selectedGroup) return false;
-      if (selectedType && p.categoryType !== selectedType) return false;
+      if (selectedGroup && (!p.categoryGroup || p.categoryGroup.trim().toLowerCase() !== selectedGroup.trim().toLowerCase())) return false;
+      if (selectedType && (!p.categoryType || p.categoryType.trim().toLowerCase() !== selectedType.trim().toLowerCase())) return false;
 
       return true;
     });
@@ -602,47 +644,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               />
             </div>
 
-            {/* Bộ lọc Thương hiệu */}
-            <select
+            {/* Bộ lọc Thương hiệu: Sắp xếp A-Z + Gõ gợi ý */}
+            <SearchableFilterSelect
+              label="Thương hiệu"
+              placeholder="Tất cả Thương hiệu"
               value={selectedBrand}
-              onChange={e => setSelectedBrand(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
-            >
-              <option value="">Tất cả Thương hiệu</option>
-              {brands.map((b, i) => (
-                <option key={i} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedBrand}
+              options={brands}
+              counts={brandCounts}
+            />
 
-            {/* Bộ lọc Nhóm */}
-            <select
+            {/* Bộ lọc Nhóm: Sắp xếp A-Z + Gõ gợi ý */}
+            <SearchableFilterSelect
+              label="Nhóm"
+              placeholder="Tất cả Nhóm"
               value={selectedGroup}
-              onChange={e => setSelectedGroup(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
-            >
-              <option value="">Tất cả Nhóm</option>
-              {categoryGroups.map((g, i) => (
-                <option key={i} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedGroup}
+              options={categoryGroups}
+              counts={groupCounts}
+            />
 
-            {/* Bộ lọc Loại */}
-            <select
+            {/* Bộ lọc Loại: Sắp xếp A-Z + Gõ gợi ý */}
+            <SearchableFilterSelect
+              label="Loại"
+              placeholder="Tất cả Loại"
               value={selectedType}
-              onChange={e => setSelectedType(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none"
-            >
-              <option value="">Tất cả Loại</option>
-              {categoryTypes.map((t, i) => (
-                <option key={i} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedType}
+              options={categoryTypes}
+              counts={typeCounts}
+            />
 
             {/* Nút reset lọc */}
             {(searchQuery || selectedBrand || selectedGroup || selectedType) && (
