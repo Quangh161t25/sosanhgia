@@ -272,6 +272,34 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     }
   };
 
+  const handleApplyCategoryFromSimilar = (sim: Product) => {
+    if (!sim.categoryGroup && !sim.categoryType) {
+      alert('Sản phẩm này chưa thiết lập Nhóm danh mục và Loại sản phẩm.');
+      return;
+    }
+    const targetInfo = [
+      sim.categoryGroup ? `Nhóm: "${sim.categoryGroup}"` : null,
+      sim.categoryType ? `Loại: "${sim.categoryType}"` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    const confirm = window.confirm(
+      `Đồng bộ Nhóm danh mục và Loại sản phẩm từ [${sim.sku}] sang form đang sửa?\n(${targetInfo})`
+    );
+    if (confirm) {
+      const nextGroup = sim.categoryGroup || categoryGroup;
+      const nextType = sim.categoryType || categoryType;
+      if (sim.categoryGroup) setCategoryGroup(sim.categoryGroup);
+      if (sim.categoryType) setCategoryType(sim.categoryType);
+      // Quét lại đối chiếu theo Nhóm & Loại vừa cập nhật
+      handleFindSimilarProducts({
+        categoryGroup: nextGroup,
+        categoryType: nextType,
+      });
+    }
+  };
+
   useEffect(() => {
     if (productToEdit) {
       setSku(productToEdit.sku);
@@ -522,7 +550,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 </h4>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Đối chiếu kho & sao chép thông số nhanh
+                  Đối chiếu 3 tiêu chí: Tên • Nhóm DM • Loại SP
                 </p>
               </div>
             </div>
@@ -554,10 +582,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <div className="p-8 text-center space-y-2.5">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-400 mx-auto" />
                 <p className="text-xs text-slate-300 font-medium">
-                  Gemini AI đang phân tích danh mục & thông số...
+                  AI đang so sánh theo Tên, Nhóm & Loại...
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  Đang quét kho hàng để tìm các sản phẩm cùng phân khúc
+                  Đang quét kho hàng để tìm các sản phẩm cùng nhóm & chủng loại
                 </p>
               </div>
             ) : similarProducts.length === 0 ? (
@@ -573,14 +601,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </button>
               </div>
             ) : (
-              similarProducts.map(({ product: sim, similarityScore, matchReasons }) => {
+              similarProducts.map(({ product: sim, similarityScore, matchReasons, criteriaMatch }) => {
                 const f = calculateFinancials(
                   sim.pricing || { costPrice: 0, distributorPrice: 0, floorPrice: 0, retailPrice: 0, currency: 'VND' }
                 );
                 return (
                   <div
                     key={sim.id}
-                    className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2"
+                    className="p-3 rounded-xl bg-slate-800/85 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2.5 shadow-md"
                   >
                     {/* Hàng trên: Badge điểm & SKU */}
                     <div className="flex items-center justify-between">
@@ -593,8 +621,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     {/* Giữa: Ảnh + Tên */}
-                    <div className="flex items-start gap-2">
-                      <div className="w-11 h-11 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
                         <img
                           src={sim.thumbnail}
                           alt={sim.name}
@@ -611,20 +639,109 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           {sim.name}
                         </h5>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
-                          <span>{sim.brand || sim.categoryType}</span>
+                          <span className="text-slate-300 font-medium">{sim.brand || 'Chưa rõ hãng'}</span>
+                          {sim.categoryType && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-400 truncate max-w-[120px]">{sim.categoryType}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Lý do AI nhận diện */}
-                    <div className="text-[10px] text-slate-300 space-y-0.5 bg-slate-900/60 p-1.5 rounded-lg border border-slate-800">
-                      {matchReasons.slice(0, 2).map((r, i) => (
-                        <div key={i} className="flex items-center gap-1 text-slate-300">
-                          <span className="text-blue-400">•</span>
-                          <span className="truncate">{r}</span>
+                    {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ CỐT LÕI */}
+                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-750 text-[11px] space-y-1.5">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
+                        <span className="flex items-center gap-1 text-blue-400">
+                          <Sparkles className="w-3 h-3" />
+                          Đối chiếu 3 tiêu chí
+                        </span>
+                        <span className="font-mono text-emerald-400 font-semibold">{similarityScore}đ</span>
+                      </div>
+
+                      {/* Tiêu chí 1: Tên sản phẩm */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">1. Tên SP:</span>
+                          <span className="font-mono text-[10px] font-semibold text-blue-300">
+                            {criteriaMatch?.nameMatch?.score ?? 0}% khớp từ khóa
+                          </span>
                         </div>
-                      ))}
+                        <div className="text-[10px] text-slate-300 bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate">
+                          {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
+                            <span className="text-emerald-300">
+                              ✓ Trùng: <span className="font-semibold text-white">{criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic">Từ khóa tên khác biệt</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tiêu chí 2: Nhóm danh mục */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">2. Nhóm DM:</span>
+                          {criteriaMatch?.groupMatch?.isSame ? (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                              ✓ Cùng nhóm
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                              ≠ Khác nhóm
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
+                          title={`Hiện tại: "${categoryGroup || 'Trống'}" ↔ SP này: "${sim.categoryGroup || 'Trống'}"`}
+                        >
+                          <span className="text-slate-400">SP này: </span>
+                          <span className={criteriaMatch?.groupMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                            {sim.categoryGroup || '(Chưa đặt)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tiêu chí 3: Loại sản phẩm */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">3. Loại SP:</span>
+                          {criteriaMatch?.typeMatch?.isSame ? (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                              ✓ Cùng loại
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                              ≠ Khác loại
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
+                          title={`Hiện tại: "${categoryType || 'Trống'}" ↔ SP này: "${sim.categoryType || 'Trống'}"`}
+                        >
+                          <span className="text-slate-400">SP này: </span>
+                          <span className={criteriaMatch?.typeMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                            {sim.categoryType || '(Chưa đặt)'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Nút tác vụ Đồng bộ Nhóm & Loại */}
+                    {(!criteriaMatch?.groupMatch?.isSame || !criteriaMatch?.typeMatch?.isSame) && (sim.categoryGroup || sim.categoryType) && (
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCategoryFromSimilar(sim)}
+                        className="w-full py-1 px-2 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/40 text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        title="Sao chép Nhóm danh mục và Loại sản phẩm từ SP này vào form đang sửa"
+                      >
+                        <Layers className="w-3 h-3 text-indigo-400" />
+                        <span>Đồng bộ Nhóm & Loại sang form</span>
+                      </button>
+                    )}
 
                     {/* Giá tham chiếu */}
                     <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-slate-700/60">
@@ -638,8 +755,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Nút tác vụ nhanh */}
-                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    {/* Nút tác vụ nhanh: Chép thông số, Tham khảo giá */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                       <button
                         type="button"
                         onClick={() => handleCopySpecsFromSimilar(sim)}

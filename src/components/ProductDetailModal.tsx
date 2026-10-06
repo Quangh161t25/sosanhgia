@@ -180,12 +180,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </button>
               </div>
             ) : (
-              similarProducts.map(({ product: sim, similarityScore, matchReasons }) => {
+              similarProducts.map(({ product: sim, similarityScore, matchReasons, criteriaMatch }) => {
                 const isItemComparing = compareIds?.includes(sim.id);
                 return (
                   <div
                     key={sim.id}
-                    className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2"
+                    className="p-3 rounded-xl bg-slate-800/85 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2.5 shadow-md"
                   >
                     {/* Hàng trên: Badge điểm & SKU */}
                     <div className="flex items-center justify-between">
@@ -198,8 +198,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     </div>
 
                     {/* Giữa: Ảnh + Tên */}
-                    <div className="flex items-start gap-2">
-                      <div className="w-11 h-11 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
                         <img
                           src={sim.thumbnail}
                           alt={sim.name}
@@ -226,19 +226,85 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Lý do tương đồng */}
-                    {matchReasons.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-0.5">
-                        {matchReasons.slice(0, 2).map((r, ri) => (
-                          <span
-                            key={ri}
-                            className="text-[10px] px-1.5 py-0.2 rounded bg-slate-700/60 text-slate-300 border border-slate-600/40"
-                          >
-                            ✓ {r}
-                          </span>
-                        ))}
+                    {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ CỐT LÕI */}
+                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-750 text-[11px] space-y-1.5">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
+                        <span className="flex items-center gap-1 text-blue-400">
+                          <Sparkles className="w-3 h-3" />
+                          Đối chiếu 3 tiêu chí
+                        </span>
+                        <span className="font-mono text-emerald-400 font-semibold">{similarityScore}đ</span>
                       </div>
-                    )}
+
+                      {/* Tiêu chí 1: Tên sản phẩm */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">1. Tên SP:</span>
+                          <span className="font-mono text-[10px] font-semibold text-blue-300">
+                            {criteriaMatch?.nameMatch?.score ?? 0}% khớp từ khóa
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate">
+                          {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
+                            <span className="text-emerald-300">
+                              ✓ Trùng: <span className="font-semibold text-white">{criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic">Từ khóa tên khác biệt</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tiêu chí 2: Nhóm danh mục */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">2. Nhóm DM:</span>
+                          {criteriaMatch?.groupMatch?.isSame ? (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                              ✓ Cùng nhóm
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                              ≠ Khác nhóm
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
+                          title={`Hiện tại: "${product.categoryGroup || 'Trống'}" ↔ SP này: "${sim.categoryGroup || 'Trống'}"`}
+                        >
+                          <span className="text-slate-400">SP này: </span>
+                          <span className={criteriaMatch?.groupMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                            {sim.categoryGroup || '(Chưa đặt)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tiêu chí 3: Loại sản phẩm */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">3. Loại SP:</span>
+                          {criteriaMatch?.typeMatch?.isSame ? (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                              ✓ Cùng loại
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                              ≠ Khác loại
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[10px] bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800/80 truncate"
+                          title={`Hiện tại: "${product.categoryType || 'Trống'}" ↔ SP này: "${sim.categoryType || 'Trống'}"`}
+                        >
+                          <span className="text-slate-400">SP này: </span>
+                          <span className={criteriaMatch?.typeMatch?.isSame ? 'text-emerald-300 font-semibold' : 'text-slate-200'}>
+                            {sim.categoryType || '(Chưa đặt)'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Nút tác vụ nhanh */}
                     <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-700/50">

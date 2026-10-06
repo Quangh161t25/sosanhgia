@@ -2,10 +2,29 @@ import { Product } from '../types/product';
 import { calculateFinancials, formatVND } from './pricing';
 import { getSavedGeminiKey } from './aiSpecParser';
 
+export interface CriteriaMatchDetail {
+  nameMatch: {
+    score: number; // 0 - 100%
+    commonWords: string[];
+    label: string;
+  };
+  groupMatch: {
+    targetGroup: string;
+    candidateGroup: string;
+    isSame: boolean;
+  };
+  typeMatch: {
+    targetType: string;
+    candidateType: string;
+    isSame: boolean;
+  };
+}
+
 export interface SimilarProductResult {
   product: Product;
   similarityScore: number; // 0 - 100%
   matchReasons: string[];
+  criteriaMatch: CriteriaMatchDetail;
 }
 
 export interface ProductComparisonInsight {
@@ -63,101 +82,103 @@ export async function findSimilarProducts(
 
   if (candidates.length === 0) return [];
 
-  const targetTokens = tokenize(`${target.name || ''} ${target.description || ''} ${target.categoryType || ''}`);
-  const targetCategory = (target.categoryType || '').trim().toLowerCase();
+  const targetName = (target.name || '').trim();
+  const targetNameTokens = tokenize(targetName);
+  const targetCategoryType = (target.categoryType || '').trim().toLowerCase();
+  const targetCategoryGroup = (target.categoryGroup || '').trim().toLowerCase();
   const targetBrand = (target.brand || '').trim().toLowerCase();
-  const targetRetail = target.pricing?.retailPrice || 0;
-
-  // Lấy danh sách thông số của target để so khớp
-  const targetSpecValues = new Set<string>();
-  if (Array.isArray(target.specifications)) {
-    target.specifications.forEach(g => {
-      if (Array.isArray(g?.items)) {
-        g.items.forEach(i => {
-          if (i?.value && String(i.value).trim().length > 1) {
-            targetSpecValues.add(String(i.value).trim().toLowerCase());
-          }
-        });
-      }
-    });
-  }
 
   const scored: SimilarProductResult[] = candidates.map(p => {
     let score = 0;
     const reasons: string[] = [];
 
-    // 1. Cùng danh mục (Trọng số lớn: 40 điểm)
-    const pCategory = (p.categoryType || '').trim().toLowerCase();
-    if (targetCategory && pCategory && targetCategory === pCategory) {
+    // ==========================================
+    // TIÊU CHÍ 1: SO SÁNH THEO LOẠI SẢN PHẨM (categoryType) - 40 điểm
+    // ==========================================
+    const pType = (p.categoryType || '').trim().toLowerCase();
+    const isSameType = Boolean(targetCategoryType && pType && targetCategoryType === pType);
+    if (isSameType) {
       score += 40;
-      reasons.push(`Cùng ngành hàng: ${p.categoryType}`);
+      reasons.push(`Cùng Loại sản phẩm: ${p.categoryType}`);
+    } else if (
+      targetCategoryType &&
+      pType &&
+      (targetCategoryType.includes(pType) || pType.includes(targetCategoryType))
+    ) {
+      score += 25;
+      reasons.push(`Gần cùng Loại sản phẩm: ${p.categoryType}`);
     }
 
-    // 2. Cùng thương hiệu (Trọng số: 15 điểm)
+    // ==========================================
+    // TIÊU CHÍ 2: SO SÁNH THEO NHÓM DANH MỤC (categoryGroup) - 30 điểm
+    // ==========================================
+    const pGroup = (p.categoryGroup || '').trim().toLowerCase();
+    const isSameGroup = Boolean(targetCategoryGroup && pGroup && targetCategoryGroup === pGroup);
+    if (isSameGroup) {
+      score += 30;
+      reasons.push(`Cùng Nhóm danh mục: ${p.categoryGroup}`);
+    }
+
+    // ==========================================
+    // TIÊU CHÍ 3: SO SÁNH THEO TÊN SẢN PHẨM (name) - 30 điểm
+    // ==========================================
+    const pNameTokens = tokenize(p.name || '');
+    const commonWords: string[] = [];
+    targetNameTokens.forEach(token => {
+      if (pNameTokens.has(token)) {
+        commonWords.push(token);
+      }
+    });
+
+    const minTokenLen = Math.min(targetNameTokens.size, pNameTokens.size);
+    const tokenOverlapRatio = minTokenLen > 0 ? commonWords.length / minTokenLen : 0;
+    const nameMatchPercent = Math.min(100, Math.round(tokenOverlapRatio * 100));
+
+    let nameScore = 0;
+    if (tokenOverlapRatio >= 0.5 || commonWords.length >= 3) {
+      nameScore = 30;
+      reasons.push(`Tên trùng ${commonWords.length} từ khóa chính`);
+    } else if (tokenOverlapRatio >= 0.25 || commonWords.length >= 2) {
+      nameScore = 20;
+      reasons.push(`Tên trùng ${commonWords.length} từ khóa`);
+    } else if (commonWords.length >= 1) {
+      nameScore = 10;
+      reasons.push(`Tên có từ khóa chung: "${commonWords[0]}"`);
+    }
+    score += nameScore;
+
+    // Điểm cộng nhỏ nếu cùng thương hiệu (+5 điểm)
     const pBrand = (p.brand || '').trim().toLowerCase();
     if (targetBrand && pBrand && targetBrand === pBrand) {
-      score += 15;
-      reasons.push(`Cùng thương hiệu: ${p.brand}`);
+      score += 5;
     }
 
-    // 3. Phân khúc giá tương đồng (Trọng số: 25 điểm)
-    const pRetail = p.pricing?.retailPrice || 0;
-    if (targetRetail > 0 && pRetail > 0) {
-      const priceDiff = Math.abs(pRetail - targetRetail);
-      const ratio = priceDiff / targetRetail;
-      if (ratio <= 0.15) {
-        score += 25;
-        reasons.push(`Cùng tầm giá (chênh lệch < 15%)`);
-      } else if (ratio <= 0.35) {
-        score += 15;
-        reasons.push(`Phân khúc giá liền kề (chênh ${formatVND(priceDiff)})`);
-      } else if (ratio <= 0.6) {
-        score += 5;
-      }
-    }
-
-    // 4. Trùng từ khóa tên & mô tả (Trọng số: 15 điểm)
-    const pTokens = tokenize(`${p.name || ''} ${p.description || ''}`);
-    let tokenOverlap = 0;
-    targetTokens.forEach(t => {
-      if (pTokens.has(t)) tokenOverlap++;
-    });
-    if (tokenOverlap >= 3) {
-      score += 15;
-      reasons.push(`Tương đồng đặc tính tên & mô tả`);
-    } else if (tokenOverlap >= 1) {
-      score += 8;
-    }
-
-    // 5. Trùng giá trị thông số kỹ thuật (Dung tích, công suất, chất liệu...) (Trọng số: 15 điểm)
-    let specOverlap = 0;
-    if (Array.isArray(p.specifications)) {
-      p.specifications.forEach(g => {
-        if (Array.isArray(g?.items)) {
-          g.items.forEach(i => {
-            if (i?.value && targetSpecValues.has(String(i.value).trim().toLowerCase())) {
-              specOverlap++;
-            }
-          });
-        }
-      });
-    }
-    if (specOverlap > 0) {
-      score += Math.min(specOverlap * 5, 15);
-      reasons.push(`Trùng ${specOverlap} chỉ số kỹ thuật`);
-    }
-
-    // Chuẩn hóa điểm 0 - 100
-    const finalScore = Math.min(Math.max(Math.round(score), 10), 99);
-
-    if (reasons.length === 0) {
-      reasons.push('Sản phẩm trong cùng danh mục kho');
-    }
+    const finalScore = Math.min(Math.max(Math.round(score), 10), 100);
 
     return {
       product: p,
       similarityScore: finalScore,
       matchReasons: reasons,
+      criteriaMatch: {
+        nameMatch: {
+          score: nameMatchPercent,
+          commonWords,
+          label:
+            commonWords.length > 0
+              ? `Trùng ${commonWords.length} từ (${commonWords.slice(0, 3).join(', ')})`
+              : 'Khác biệt từ khóa',
+        },
+        groupMatch: {
+          targetGroup: target.categoryGroup || '',
+          candidateGroup: p.categoryGroup || '',
+          isSame: isSameGroup,
+        },
+        typeMatch: {
+          targetType: target.categoryType || '',
+          candidateType: p.categoryType || '',
+          isSame: isSameType,
+        },
+      },
     };
   });
 
@@ -169,25 +190,28 @@ export async function findSimilarProducts(
   const apiKey = (customApiKey || getSavedGeminiKey()).trim();
   if (apiKey && topSimilar.length > 0 && target.name) {
     try {
-      const candidatesPrompt = topSimilar.map((s, idx) => 
-        `ID_${idx}: ${s.product.sku} - ${s.product.name} (Giá: ${s.product.pricing.retailPrice}đ)`
-      ).join('\n');
+      const candidatesPrompt = topSimilar
+        .map(
+          (s, idx) =>
+            `ID_${idx}: Tên: "${s.product.name}", Nhóm: "${s.product.categoryGroup || ''}", Loại: "${s.product.categoryType || ''}"`
+        )
+        .join('\n');
 
-      const prompt = `Bạn là chuyên gia phân tích sản phẩm.
+      const prompt = `Bạn là chuyên gia phân tích dữ liệu sản phẩm.
 Sản phẩm đang sửa:
-- Tên: ${target.name}
-- SKU: ${target.sku || 'Chưa có'}
-- Danh mục: ${target.categoryType || 'Chưa rõ'}
-- Giá bán lẻ: ${target.pricing?.retailPrice || 0}đ
+- Tên sản phẩm: "${target.name}"
+- Nhóm danh mục: "${target.categoryGroup || 'Chưa rõ'}"
+- Loại sản phẩm: "${target.categoryType || 'Chưa rõ'}"
 
-Các sản phẩm ứng viên tương tự trong kho:
+Các sản phẩm ứng viên tương tự:
 ${candidatesPrompt}
 
-Yêu cầu: Với mỗi ID_x, hãy đưa ra 1 câu nhận xét ngắn (dưới 15 từ) giải thích tại sao sản phẩm này tương đồng với sản phẩm đang sửa.
-Trả về định dạng JSON duy nhất:
+Yêu cầu: So sánh từng ứng viên với sản phẩm đang sửa dựa trên 3 tiêu chí (Tên, Nhóm danh mục, Loại sản phẩm).
+Với mỗi ID_x, hãy đưa ra 1 câu nhận xét ngắn (dưới 15 từ) giải thích mức độ khớp của 3 tiêu chí này.
+Trả về JSON duy nhất:
 {
   "matches": [
-    { "id": "ID_0", "reason": "Lý do tương đồng ngắn gọn" }
+    { "id": "ID_0", "reason": "Nhận xét ngắn về độ khớp 3 tiêu chí" }
   ]
 }`;
 
@@ -216,7 +240,7 @@ Trả về định dạng JSON duy nhất:
         }
       }
     } catch {
-      // Giữ nguyên kết quả heuristic nếu AI gặp sự cố
+      // Giữ nguyên kết quả heuristic
     }
   }
 
