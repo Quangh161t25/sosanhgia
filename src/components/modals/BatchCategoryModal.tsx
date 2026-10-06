@@ -12,6 +12,7 @@ import {
   HelpCircle,
   RefreshCw,
   SlidersHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import {
   classifyBatchCategories,
@@ -36,6 +37,32 @@ interface ItemState {
   checked: boolean;
 }
 
+const COMMON_TYPES = [
+  'Bộ nồi inox',
+  'Bộ nồi inox 3 món',
+  'Bộ nồi inox 5 món',
+  'Nồi luộc gà',
+  'Quánh inox',
+  'Chảo chống dính',
+  'Chảo inox',
+  'Bình giữ nhiệt',
+  'Hộp cơm giữ nhiệt',
+  'Bộ dao làm bếp',
+  'Thớt kháng khuẩn',
+  'Nồi chiên không dầu',
+  'Ấm đun nước siêu tốc',
+  'Nồi cơm điện',
+  'Nồi áp suất điện',
+  'Bếp từ',
+  'Bếp hồng ngoại',
+  'Máy xay đa năng',
+  'Máy ép chậm',
+  'Máy làm sữa hạt',
+  'Robot hút bụi lau nhà',
+  'Khóa cửa thông minh',
+  'Máy lọc không khí',
+];
+
 export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
   isOpen,
   onClose,
@@ -48,6 +75,10 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
   const [items, setItems] = useState<Record<string, ItemState>>({});
   const [usedGemini, setUsedGemini] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Thanh gán nhanh hàng loạt
+  const [quickGroup, setQuickGroup] = useState('');
+  const [quickType, setQuickType] = useState('');
 
   // Danh sách các nhóm hiện có
   const existingGroups = useMemo(() => {
@@ -73,6 +104,8 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
       setItems(initial);
       setHasAnalyzed(false);
       setUsedGemini(false);
+      setQuickGroup('');
+      setQuickType('');
 
       // Tự động kích hoạt phân tích ngay khi mở để người dùng không phải bấm thêm bước
       runAnalysis(selectedProducts);
@@ -154,6 +187,42 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
     }));
   };
 
+  // Gán nhanh Nhóm cho các dòng đang được tick
+  const handleApplyQuickGroup = () => {
+    if (!quickGroup) return;
+    setItems(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        if (next[id]?.checked) {
+          next[id] = {
+            ...next[id],
+            categoryGroup: quickGroup,
+            reason: `Người dùng gán nhanh nhóm [${quickGroup}]`,
+          };
+        }
+      });
+      return next;
+    });
+  };
+
+  // Gán nhanh Loại cho các dòng đang được tick
+  const handleApplyQuickType = () => {
+    if (!quickType.trim()) return;
+    setItems(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        if (next[id]?.checked) {
+          next[id] = {
+            ...next[id],
+            categoryType: quickType.trim(),
+            reason: `Người dùng gán nhanh loại [${quickType.trim()}]`,
+          };
+        }
+      });
+      return next;
+    });
+  };
+
   const handleApplyUpdates = async () => {
     if (checkedCount === 0) {
       alert('Vui lòng chọn ít nhất 1 sản phẩm để áp dụng cập nhật.');
@@ -211,7 +280,7 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                AI phân tích Tên và Mô tả để tự động điều chỉnh Nhóm danh mục và Loại sản phẩm chuẩn xác
+                AI phân tích Tên sản phẩm để chuẩn hóa Nhóm ngành hàng và Loại sản phẩm (Bạn có thể click sửa trực tiếp bên dưới)
               </p>
             </div>
           </div>
@@ -244,7 +313,7 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
             <span className="text-slate-700 font-medium">
               Chế độ:{' '}
               <strong className="text-blue-700">
-                {usedGemini ? 'Google Gemini 2.5 Flash + Bộ quy tắc chuyên sâu' : 'Bộ quy tắc nhận diện thông minh tiếng Việt (Heuristic Engine)'}
+                {usedGemini ? 'Google Gemini 2.5 Flash + Heuristic Engine' : 'Bộ quy tắc nhận diện chuyên sâu tiếng Việt (Ưu tiên tên sản phẩm)'}
               </strong>
             </span>
           </div>
@@ -253,12 +322,66 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
           </div>
         </div>
 
-        {/* Bảng Danh sách đối chiếu Cũ ➔ Mới */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+        {/* VÙNG NỘI DUNG CUỘN CHÍNH */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar space-y-3">
+          
+          {/* THANH GÁN NHANH HÀNG LOẠT (QUICK BATCH ASSIGNMENT) */}
+          <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200/90 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-amber-900">
+              <SlidersHorizontal className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>Gán nhanh cho {checkedCount} dòng đã tick:</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Đổi nhanh Nhóm */}
+              <div className="flex items-center gap-1">
+                <select
+                  value={quickGroup}
+                  onChange={e => setQuickGroup(e.target.value)}
+                  className="h-7 px-2 text-xs rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">-- Chọn Nhóm danh mục --</option>
+                  {existingGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleApplyQuickGroup}
+                  disabled={!quickGroup || checkedCount === 0}
+                  className="h-7 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] disabled:opacity-40 cursor-pointer shadow-2xs transition-all active:scale-95"
+                >
+                  Gán Nhóm
+                </button>
+              </div>
+
+              {/* Đổi nhanh Loại */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={quickType}
+                  onChange={e => setQuickType(e.target.value)}
+                  placeholder="Loại SP (VD: Bộ nồi inox...)"
+                  list="common-type-options"
+                  className="h-7 px-2 text-xs rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 w-44 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyQuickType}
+                  disabled={!quickType.trim() || checkedCount === 0}
+                  className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] disabled:opacity-40 cursor-pointer shadow-2xs transition-all active:scale-95"
+                >
+                  Gán Loại
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bảng Danh sách đối chiếu Cũ ➔ Mới */}
           {isAnalyzing && !hasAnalyzed ? (
             <div className="py-16 flex flex-col items-center justify-center text-center">
               <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-3" />
-              <p className="text-sm font-bold text-slate-800">Đang phân tích tên và mô tả sản phẩm bằng AI...</p>
+              <p className="text-sm font-bold text-slate-800">Đang phân tích tên sản phẩm bằng AI...</p>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
                 Hệ thống đang chuẩn hóa Nhóm ngành hàng và phân loại chi tiết cho từng sản phẩm.
               </p>
@@ -340,7 +463,7 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
                             </div>
                           </td>
 
-                          {/* Nhóm danh mục (Cũ ➔ Mới) */}
+                          {/* Nhóm danh mục (Cũ ➔ Mới) - Có gợi ý Datalist & Cho phép sửa tự do */}
                           <td className="p-3">
                             <div className="space-y-1">
                               <div className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -353,10 +476,11 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
                                 <ArrowRight className="w-3 h-3 text-blue-600 shrink-0" />
                                 <input
                                   type="text"
+                                  list="group-datalist"
                                   value={item.categoryGroup}
                                   onChange={e => handleChangeGroup(prod.id, e.target.value)}
-                                  placeholder="Nhóm mới..."
-                                  className={`h-7 px-2 text-xs rounded border w-full font-semibold ${
+                                  placeholder="Chọn hoặc nhập nhóm..."
+                                  className={`h-7 px-2 text-xs rounded border w-full font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                                     isGroupChanged
                                       ? 'bg-blue-50 border-blue-400 text-blue-900'
                                       : 'bg-white border-slate-200 text-slate-800'
@@ -366,7 +490,7 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
                             </div>
                           </td>
 
-                          {/* Loại sản phẩm (Cũ ➔ Mới) */}
+                          {/* Loại sản phẩm (Cũ ➔ Mới) - Có gợi ý Datalist & Cho phép sửa tự do */}
                           <td className="p-3">
                             <div className="space-y-1">
                               <div className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -379,10 +503,11 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
                                 <ArrowRight className="w-3 h-3 text-emerald-600 shrink-0" />
                                 <input
                                   type="text"
+                                  list="common-type-options"
                                   value={item.categoryType}
                                   onChange={e => handleChangeType(prod.id, e.target.value)}
-                                  placeholder="Loại mới..."
-                                  className={`h-7 px-2 text-xs rounded border w-full font-semibold ${
+                                  placeholder="Chọn hoặc nhập loại..."
+                                  className={`h-7 px-2 text-xs rounded border w-full font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
                                     isTypeChanged
                                       ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
                                       : 'bg-white border-slate-200 text-slate-800'
@@ -408,10 +533,23 @@ export const BatchCategoryModal: React.FC<BatchCategoryModalProps> = ({
           )}
         </div>
 
+        {/* Datalist gợi ý cho trình duyệt */}
+        <datalist id="group-datalist">
+          {existingGroups.map(g => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
+
+        <datalist id="common-type-options">
+          {COMMON_TYPES.map(t => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+
         {/* Footer Modal */}
         <div className="p-4 sm:px-6 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-500">
-            💡 Bạn có thể click trực tiếp vào các ô Nhóm mới / Loại mới để sửa lại theo ý muốn trước khi Lưu.
+            💡 Bạn có thể click trực tiếp vào từng ô để gõ sửa, hoặc dùng thanh "Gán nhanh" ở trên để đổi đồng loạt.
           </div>
 
           <div className="flex items-center gap-2">
