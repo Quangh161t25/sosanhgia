@@ -808,14 +808,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           
           {/* Vùng lọc bên trái */}
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
-            {/* Nút quay lại */}
+            {/* Nút quay lại Tổng quan / Dashboard */}
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer"
+              title="Về màn hình Dashboard Tổng quan"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Quay lại</span>
+              <span>Tổng quan (Dashboard)</span>
             </button>
 
             {/* Ô tìm kiếm */}

@@ -43,7 +43,7 @@ export function getTabFromPathname(pathname: string): NavigationTab {
   try {
     const raw = decodeURIComponent(pathname || '').toLowerCase().trim();
     const clean = raw.replace(/^\/+|\/+$/g, '');
-    if (!clean || clean === 'home' || clean === 'trang-chu') return 'home';
+    if (!clean || clean === 'home' || clean === 'trang-chu' || clean === 'tong-quan' || clean === 'tongquan' || clean === 'dashboard') return 'home';
     if (
       clean.includes('san-pham') ||
       clean.includes('sanpham') ||
@@ -652,6 +652,12 @@ export default function App() {
               compareCount={compareIds.length}
               products={products}
               currentUser={currentUser}
+              onOpenAddModal={() => {
+                setEditingProduct(null);
+                setIsFormOpen(true);
+              }}
+              onOpenExcelImport={() => setIsExcelImportOpen(true)}
+              onViewDetail={setDetailProduct}
             />
           )}
 

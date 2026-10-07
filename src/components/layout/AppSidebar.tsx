@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Home,
+  LayoutDashboard,
   Package,
   Scale,
   ChevronLeft,
@@ -29,8 +29,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const navItems: { id: NavigationTab; label: string; icon: React.ReactNode; badge?: React.ReactNode }[] = [
     {
       id: 'home',
-      label: 'Trang chủ',
-      icon: <Home className="w-4 h-4 shrink-0" />,
+      label: 'Tổng quan (Dashboard)',
+      icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
     },
     {
       id: 'products',

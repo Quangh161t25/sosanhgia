@@ -72,7 +72,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   }, []);
 
   const tabNames: Record<NavigationTab, string> = {
-    home: 'Trang chủ',
+    home: 'Tổng quan',
     products: 'Sản phẩm',
     compare: 'So sánh',
     settings: 'Cài đặt',
