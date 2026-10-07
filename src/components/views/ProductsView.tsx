@@ -24,11 +24,21 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronsUpDown,
+  Package,
+  Layers,
+  DollarSign,
+  FileText,
+  Settings,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
 import { calculateFinancials, formatVND, removeVietnameseTones } from '../../utils/pricing';
-import { ColumnConfig } from './ColumnSettingsModal';
+import {
+  ColumnConfig,
+  ColumnGroupId,
+  COLUMN_GROUPS,
+  getColumnGroup,
+} from './ColumnSettingsModal';
 import { ColumnOptionsPopover, TableDensity } from './ColumnOptionsPopover';
 import { SearchableFilterSelect } from './SearchableFilterSelect';
 import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
@@ -41,28 +51,75 @@ import { ProductImageLightboxModal } from '../ProductImageLightboxModal';
 const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
 const DENSITY_STORAGE_KEY = 'procompare_table_density';
 const PAGE_SIZE_STORAGE_KEY = 'procompare_page_size';
+const TABLE_GROUPING_STORAGE_KEY = 'procompare_table_grouping_v1';
+
+const GROUP_HEADER_STYLES: Record<
+  ColumnGroupId,
+  { bg: string; text: string; border: string; badgeBg: string; badgeText: string; icon: React.FC<{ className?: string }> }
+> = {
+  system: {
+    bg: 'bg-slate-100/95',
+    text: 'text-slate-700',
+    border: 'border-slate-300',
+    badgeBg: 'bg-slate-200',
+    badgeText: 'text-slate-700',
+    icon: Settings,
+  },
+  general: {
+    bg: 'bg-blue-50/95',
+    text: 'text-blue-900',
+    border: 'border-blue-200',
+    badgeBg: 'bg-blue-100',
+    badgeText: 'text-blue-700',
+    icon: Package,
+  },
+  category: {
+    bg: 'bg-emerald-50/95',
+    text: 'text-emerald-900',
+    border: 'border-emerald-200',
+    badgeBg: 'bg-emerald-100',
+    badgeText: 'text-emerald-700',
+    icon: Layers,
+  },
+  pricing: {
+    bg: 'bg-amber-50/95',
+    text: 'text-amber-900',
+    border: 'border-amber-200',
+    badgeBg: 'bg-amber-100',
+    badgeText: 'text-amber-800',
+    icon: DollarSign,
+  },
+  details: {
+    bg: 'bg-purple-50/95',
+    text: 'text-purple-900',
+    border: 'border-purple-200',
+    badgeBg: 'bg-purple-100',
+    badgeText: 'text-purple-800',
+    icon: FileText,
+  },
+};
 
 export const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: 'checkbox', label: 'Hộp kiểm', visible: true, pinned: true, align: 'center', wrap: false, width: 48 },
-  { id: 'thumbnail', label: 'Hình ảnh', visible: true, pinned: false, align: 'center', wrap: false, width: 68 },
-  { id: 'sku', label: 'Mã SKU / Modul', visible: true, pinned: false, align: 'left', wrap: false, width: 120 },
-  { id: 'name', label: 'Tên sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 250 },
-  { id: 'brand', label: 'Thương hiệu', visible: true, pinned: false, align: 'left', wrap: false, width: 120 },
-  { id: 'categoryGroup', label: 'Nhóm danh mục', visible: true, pinned: false, align: 'left', wrap: false, width: 130 },
-  { id: 'categoryType', label: 'Loại sản phẩm', visible: true, pinned: false, align: 'left', wrap: false, width: 130 },
-  { id: 'warrantyMonths', label: 'Bảo hành', visible: true, pinned: false, align: 'center', wrap: false, width: 100 },
-  { id: 'costPrice', label: '1. Giá nhập', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
-  { id: 'distributorPrice', label: '2. Giá NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
-  { id: 'floorPrice', label: '3. Giá sàn', visible: true, pinned: false, align: 'right', wrap: false, width: 100 },
-  { id: 'retailPrice', label: '4. Giá bán lẻ', visible: true, pinned: false, align: 'right', wrap: false, width: 110 },
-  { id: 'margin', label: 'Biên LN NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 100 },
-  { id: 'description', label: 'Mô tả sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 300 },
-  { id: 'specs', label: 'Thông số kỹ thuật', visible: true, pinned: false, align: 'left', wrap: true, width: 240 },
-  { id: 'tags', label: 'Nhãn Tags', visible: true, pinned: false, align: 'left', wrap: true, width: 130 },
-  { id: 'notes', label: 'Ghi chú', visible: true, pinned: false, align: 'left', wrap: true, width: 160 },
-  { id: 'status', label: 'Trạng thái', visible: true, pinned: false, align: 'center', wrap: false, width: 110 },
-  { id: 'updatedAt', label: 'Ngày cập nhật', visible: true, pinned: false, align: 'center', wrap: false, width: 110 },
-  { id: 'actions', label: 'Thao tác', visible: true, pinned: false, align: 'center', wrap: false, width: 120 },
+  { id: 'checkbox', label: 'Hộp kiểm', visible: true, pinned: true, align: 'center', wrap: false, width: 48, group: 'system' },
+  { id: 'thumbnail', label: 'Hình ảnh', visible: true, pinned: false, align: 'center', wrap: false, width: 68, group: 'general' },
+  { id: 'sku', label: 'Mã SKU / Modul', visible: true, pinned: false, align: 'left', wrap: false, width: 120, group: 'general' },
+  { id: 'name', label: 'Tên sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 250, group: 'general' },
+  { id: 'brand', label: 'Thương hiệu', visible: true, pinned: false, align: 'left', wrap: false, width: 120, group: 'general' },
+  { id: 'categoryGroup', label: 'Nhóm danh mục', visible: true, pinned: false, align: 'left', wrap: false, width: 130, group: 'category' },
+  { id: 'categoryType', label: 'Loại sản phẩm', visible: true, pinned: false, align: 'left', wrap: false, width: 130, group: 'category' },
+  { id: 'costPrice', label: '1. Giá nhập', visible: true, pinned: false, align: 'right', wrap: false, width: 110, group: 'pricing' },
+  { id: 'distributorPrice', label: '2. Giá NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 110, group: 'pricing' },
+  { id: 'floorPrice', label: '3. Giá sàn', visible: true, pinned: false, align: 'right', wrap: false, width: 100, group: 'pricing' },
+  { id: 'retailPrice', label: '4. Giá bán lẻ', visible: true, pinned: false, align: 'right', wrap: false, width: 110, group: 'pricing' },
+  { id: 'margin', label: 'Biên LN NPP', visible: true, pinned: false, align: 'right', wrap: false, width: 100, group: 'pricing' },
+  { id: 'warrantyMonths', label: 'Bảo hành', visible: true, pinned: false, align: 'center', wrap: false, width: 100, group: 'details' },
+  { id: 'description', label: 'Mô tả sản phẩm', visible: true, pinned: false, align: 'left', wrap: true, width: 300, group: 'details' },
+  { id: 'specs', label: 'Thông số kỹ thuật', visible: true, pinned: false, align: 'left', wrap: true, width: 240, group: 'details' },
+  { id: 'tags', label: 'Nhãn Tags', visible: true, pinned: false, align: 'left', wrap: true, width: 130, group: 'details' },
+  { id: 'notes', label: 'Ghi chú', visible: true, pinned: false, align: 'left', wrap: true, width: 160, group: 'details' },
+  { id: 'status', label: 'Trạng thái', visible: true, pinned: false, align: 'center', wrap: false, width: 110, group: 'details' },
+  { id: 'updatedAt', label: 'Ngày cập nhật', visible: true, pinned: false, align: 'center', wrap: false, width: 110, group: 'details' },
+  { id: 'actions', label: 'Thao tác', visible: true, pinned: false, align: 'center', wrap: false, width: 120, group: 'system' },
 ];
 
 interface ProductsViewProps {
@@ -223,6 +280,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   };
 
   const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
+
+  // Chế độ gộp nhóm tiêu đề 2 tầng trên bảng dữ liệu
+  const [isTableGroupingEnabled, setIsTableGroupingEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(TABLE_GROUPING_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleTableGrouping = (enabled: boolean) => {
+    setIsTableGroupingEnabled(enabled);
+    try {
+      localStorage.setItem(TABLE_GROUPING_STORAGE_KEY, String(enabled));
+    } catch (e) {
+      // Ignore
+    }
+  };
 
   // Lưu cấu hình cột vào localStorage
   const handleUpdateColumns = (newCols: ColumnConfig[]) => {
@@ -674,6 +749,54 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return 'py-2.5 px-3 text-xs';
   }, [density]);
 
+  // Nhóm các cột liên tiếp cho hàng tiêu đề tầng 1 (Multi-tier Grouped Header)
+  interface ColumnGroupSpan {
+    groupKey: ColumnGroupId;
+    label: string;
+    span: number;
+    totalWidth: number;
+    isPinned: boolean;
+    leftOffset?: number;
+    isLastPinned: boolean;
+    columns: ColumnConfig[];
+  }
+
+  const columnGroupSpans = useMemo(() => {
+    if (!isTableGroupingEnabled) return [];
+
+    const spans: ColumnGroupSpan[] = [];
+    let currentSpan: ColumnGroupSpan | null = null;
+
+    visibleColumns.forEach(col => {
+      const groupKey = col.group || getColumnGroup(col.id);
+      const isPinned = Boolean(col.pinned);
+      const leftOffset = isPinned ? (pinnedLeftOffsets[col.id] ?? 0) : undefined;
+
+      if (currentSpan && currentSpan.groupKey === groupKey && currentSpan.isPinned === isPinned) {
+        currentSpan.span += 1;
+        currentSpan.totalWidth += col.width;
+        currentSpan.columns.push(col);
+        if (col.id === lastPinnedColId) {
+          currentSpan.isLastPinned = true;
+        }
+      } else {
+        currentSpan = {
+          groupKey,
+          label: COLUMN_GROUPS[groupKey]?.name || groupKey,
+          span: 1,
+          totalWidth: col.width,
+          isPinned,
+          leftOffset,
+          isLastPinned: col.id === lastPinnedColId,
+          columns: [col],
+        };
+        spans.push(currentSpan);
+      }
+    });
+
+    return spans;
+  }, [visibleColumns, isTableGroupingEnabled, pinnedLeftOffsets, lastPinnedColId]);
+
   return (
     <div className="w-full h-full flex flex-col min-h-0 px-3 sm:px-6 py-2.5 space-y-2.5 overflow-hidden">
       
@@ -773,6 +896,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   density={density}
                   onDensityChange={handleUpdateDensity}
                   onClose={() => setIsColumnSettingsOpen(false)}
+                  isTableGroupingEnabled={isTableGroupingEnabled}
+                  onToggleTableGrouping={handleToggleTableGrouping}
                 />
               )}
             </div>
@@ -987,6 +1112,49 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               
               {/* Header bảng dữ liệu cố định trên cùng khi lăn chuột */}
               <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold select-none shadow-[0_1px_2px_0_rgba(0,0,0,0.06)]">
+                {/* TẦNG 1: TIÊU ĐỀ GỘP NHÓM CỘT (KHI BẬT CHẾ ĐỘ NHÓM BẢNG) */}
+                {isTableGroupingEnabled && (
+                  <tr className="border-b border-slate-200/90 h-[34px]">
+                    {columnGroupSpans.map((gSpan, idx) => {
+                      const style = GROUP_HEADER_STYLES[gSpan.groupKey] || GROUP_HEADER_STYLES.details;
+                      const Icon = style.icon;
+
+                      return (
+                        <th
+                          key={`group-${gSpan.groupKey}-${idx}`}
+                          colSpan={gSpan.span}
+                          style={{
+                            top: 0,
+                            ...(gSpan.isPinned ? { left: `${gSpan.leftOffset}px` } : {}),
+                          }}
+                          className={`h-[34px] py-1 px-2.5 text-[11px] font-bold select-none text-center sticky top-0 border-r ${
+                            gSpan.isPinned
+                              ? `z-35 ${style.bg} backdrop-blur-xs ${
+                                  gSpan.isLastPinned
+                                    ? 'border-r-2 border-r-slate-400 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]'
+                                    : style.border
+                                }`
+                              : `z-25 ${style.bg} ${style.border}`
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-1.5 truncate">
+                            <Icon className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                            <span className={`uppercase tracking-wider font-bold truncate ${style.text}`}>
+                              {gSpan.label}
+                            </span>
+                            {gSpan.span > 1 && (
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-medium ${style.badgeBg} ${style.badgeText}`}>
+                                {gSpan.span}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                )}
+
+                {/* TẦNG 2: TIÊU ĐỀ CHI TIẾT TỪNG CỘT (SẮP XẾP A-Z, KÉO RỘNG, GHIM) */}
                 <tr>
                   {visibleColumns.map(col => {
                     const isPinned = col.pinned;
@@ -1007,10 +1175,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             width: `${col.width}px`,
                             minWidth: `${col.width}px`,
                             maxWidth: `${col.width}px`,
-                            top: 0,
+                            top: isTableGroupingEnabled ? '34px' : 0,
                             ...(isPinned ? { left: `${leftOffset}px` } : {}),
                           }}
-                          className={`${cellPaddingClass} w-12 text-center relative group select-none sticky top-0 z-30 bg-slate-100/95 backdrop-blur-xs border-r border-slate-200 last:border-r-0`}
+                          className={`${cellPaddingClass} w-12 text-center relative group select-none sticky z-30 bg-slate-100/95 backdrop-blur-xs border-r border-slate-200 last:border-r-0`}
                         >
                           <input
                             type="checkbox"
@@ -1040,10 +1208,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           width: `${col.width}px`,
                           minWidth: `${col.width}px`,
                           maxWidth: `${col.width}px`,
-                          top: 0,
+                          top: isTableGroupingEnabled ? '34px' : 0,
                           ...(isPinned ? { left: `${leftOffset}px` } : {}),
                         }}
-                        className={`${cellPaddingClass} relative group select-none ${alignClass} sticky top-0 ${
+                        className={`${cellPaddingClass} relative group select-none ${alignClass} sticky ${
                           isPinned
                             ? `z-30 bg-slate-100/95 backdrop-blur-xs ${
                                 isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''

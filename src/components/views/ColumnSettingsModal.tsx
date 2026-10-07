@@ -15,6 +15,30 @@ import {
   Check
 } from 'lucide-react';
 
+export type ColumnGroupId = 'system' | 'general' | 'category' | 'pricing' | 'details';
+
+export interface ColumnGroupDef {
+  id: ColumnGroupId;
+  name: string;
+  shortName: string;
+}
+
+export const COLUMN_GROUPS: Record<ColumnGroupId, ColumnGroupDef> = {
+  system: { id: 'system', name: 'Hệ thống', shortName: 'Hệ thống' },
+  general: { id: 'general', name: 'Thông tin sản phẩm', shortName: 'Thông tin' },
+  category: { id: 'category', name: 'Phân loại danh mục', shortName: 'Phân loại' },
+  pricing: { id: 'pricing', name: '4 Tầng giá & Lợi nhuận', shortName: 'Bảng giá' },
+  details: { id: 'details', name: 'Thông số & Chi tiết', shortName: 'Chi tiết' },
+};
+
+export function getColumnGroup(colId: string): ColumnGroupId {
+  if (['checkbox', 'actions'].includes(colId)) return 'system';
+  if (['thumbnail', 'sku', 'name', 'brand'].includes(colId)) return 'general';
+  if (['categoryGroup', 'categoryType'].includes(colId)) return 'category';
+  if (['costPrice', 'distributorPrice', 'floorPrice', 'retailPrice', 'margin'].includes(colId)) return 'pricing';
+  return 'details';
+}
+
 export interface ColumnConfig {
   id: string;
   label: string;
@@ -24,6 +48,7 @@ export interface ColumnConfig {
   wrap: boolean; // true: xuống dòng, false: nowrap/cắt bớt
   width: number; // Kích thước pixel
   minWidth?: number;
+  group?: ColumnGroupId;
 }
 
 interface ColumnSettingsModalProps {
