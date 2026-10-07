@@ -21,6 +21,9 @@ import {
   ChevronDown,
   ZoomIn,
   FolderEdit,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -111,6 +114,25 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     productId: string;
     field: 'categoryGroup' | 'categoryType';
   } | null>(null);
+
+  // 2. SẮP XẾP A-Z & Z-A THEO TIÊU ĐỀ CỘT
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: 'asc' | 'desc';
+  } | null>(null);
+
+  const handleSort = (columnId: string) => {
+    if (['checkbox', 'thumbnail', 'actions'].includes(columnId)) return;
+    setSortConfig(prev => {
+      if (prev?.key === columnId) {
+        if (prev.direction === 'asc') {
+          return { key: columnId, direction: 'desc' };
+        }
+        return null; // Nhấn lần 3: Khôi phục thứ tự mặc định
+      }
+      return { key: columnId, direction: 'asc' };
+    });
+  };
 
   // Cập nhật nhanh 1 trường dữ liệu (Nhóm / Loại) trực tiếp từ bảng
   const handleUpdateSingleField = (productId: string, field: 'categoryGroup' | 'categoryType', value: string) => {
@@ -398,16 +420,93 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     });
   }, [products, searchQuery, selectedBrand, selectedGroups, selectedTypes]);
 
+  // Danh sách sản phẩm sau khi sắp xếp A-Z hoặc Z-A theo tiêu đề cột
+  const sortedProducts = useMemo(() => {
+    if (!sortConfig) return filteredProducts;
+
+    const { key, direction } = sortConfig;
+    const factor = direction === 'asc' ? 1 : -1;
+
+    return [...filteredProducts].sort((a, b) => {
+      // 1. Cột đơn giá & tài chính
+      if (key === 'costPrice') {
+        return ((a.pricing?.costPrice || 0) - (b.pricing?.costPrice || 0)) * factor;
+      }
+      if (key === 'distributorPrice') {
+        return ((a.pricing?.distributorPrice || 0) - (b.pricing?.distributorPrice || 0)) * factor;
+      }
+      if (key === 'floorPrice') {
+        return ((a.pricing?.floorPrice || 0) - (b.pricing?.floorPrice || 0)) * factor;
+      }
+      if (key === 'retailPrice') {
+        return ((a.pricing?.retailPrice || 0) - (b.pricing?.retailPrice || 0)) * factor;
+      }
+      if (key === 'margin') {
+        const marginA = calculateFinancials(a.pricing).grossMarginPercent;
+        const marginB = calculateFinancials(b.pricing).grossMarginPercent;
+        return (marginA - marginB) * factor;
+      }
+
+      // 2. Cột thông số & bảo hành
+      if (key === 'specs') {
+        const countA = a.specifications.reduce((sum, g) => sum + g.items.length, 0);
+        const countB = b.specifications.reduce((sum, g) => sum + g.items.length, 0);
+        return (countA - countB) * factor;
+      }
+      if (key === 'warranty') {
+        return ((a.warrantyMonths || 0) - (b.warrantyMonths || 0)) * factor;
+      }
+
+      // 3. Cột chuỗi ký tự (hỗ trợ tiếng Việt A-Z chuẩn và số tự nhiên)
+      let valA = '';
+      let valB = '';
+
+      if (key === 'sku') {
+        valA = a.sku || '';
+        valB = b.sku || '';
+      } else if (key === 'name') {
+        valA = a.name || '';
+        valB = b.name || '';
+      } else if (key === 'brand') {
+        valA = a.brand || '';
+        valB = b.brand || '';
+      } else if (key === 'categoryGroup') {
+        valA = a.categoryGroup || '';
+        valB = b.categoryGroup || '';
+      } else if (key === 'categoryType') {
+        valA = a.categoryType || '';
+        valB = b.categoryType || '';
+      } else if (key === 'description') {
+        valA = a.description || '';
+        valB = b.description || '';
+      } else if (key === 'notes') {
+        valA = a.notes || '';
+        valB = b.notes || '';
+      } else if (key === 'status') {
+        valA = a.status || '';
+        valB = b.status || '';
+      } else if (key === 'updatedAt') {
+        valA = a.updatedAt || '';
+        valB = b.updatedAt || '';
+      } else if (key === 'tags') {
+        valA = (a.tags || []).join(' ');
+        valB = (b.tags || []).join(' ');
+      }
+
+      return valA.localeCompare(valB, 'vi', { sensitivity: 'base', numeric: true }) * factor;
+    });
+  }, [filteredProducts, sortConfig]);
+
   // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm hoặc lọc
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedBrand, selectedGroups, selectedTypes]);
+  }, [searchQuery, selectedBrand, selectedGroups, selectedTypes, sortConfig]);
 
   // Tổng số trang
   const totalPages = useMemo(() => {
     if (pageSize === -1) return 1;
-    return Math.max(1, Math.ceil(filteredProducts.length / pageSize));
-  }, [filteredProducts.length, pageSize]);
+    return Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  }, [sortedProducts.length, pageSize]);
 
   // Đảm bảo currentPage không vượt quá totalPages
   useEffect(() => {
@@ -418,13 +517,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   // Cắt danh sách sản phẩm theo trang hiện tại (Pagination slicing)
   const paginatedProducts = useMemo(() => {
-    if (pageSize === -1) return filteredProducts;
+    if (pageSize === -1) return sortedProducts;
     const start = (currentPage - 1) * pageSize;
-    return filteredProducts.slice(start, start + pageSize);
-  }, [filteredProducts, currentPage, pageSize]);
+    return sortedProducts.slice(start, start + pageSize);
+  }, [sortedProducts, currentPage, pageSize]);
 
   // Thống kê hiển thị
-  const totalFilteredCount = filteredProducts.length;
+  const totalFilteredCount = sortedProducts.length;
   const startIndex = totalFilteredCount === 0 ? 0 : (currentPage - 1) * (pageSize === -1 ? totalFilteredCount : pageSize) + 1;
   const endIndex = pageSize === -1 ? totalFilteredCount : Math.min(currentPage * pageSize, totalFilteredCount);
 
@@ -732,10 +831,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
         </div>
 
-        {/* Hàng 2: Thanh lọc nhanh theo Thương hiệu (Tất cả, các thương hiệu trong kho) + Thao tác hàng loạt */}
-        <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60 rounded-b-2xl">
+        {/* Hàng 2: Thanh lọc nhanh theo Thương hiệu (Toàn bộ chiều ngang thoải mái cuộn hoặc trải rộng) */}
+        <div className={`px-4 py-2 flex items-center bg-slate-50/60 ${selectedIds.length > 0 ? 'border-b border-slate-200/70' : 'rounded-b-2xl'}`}>
           {/* Danh sách chip lọc thương hiệu */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5 flex-1 min-w-0">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5 w-full">
             {/* Nút Tất cả */}
             <button
               type="button"
@@ -783,14 +882,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </button>
             )}
           </div>
+        </div>
 
-          {/* VÙNG ĐIỀU KHIỂN HÀNG LOẠT: Chỉ hiển thị khi có sản phẩm được tích chọn */}
-          {selectedIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/95 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs text-xs">
-              <span className="text-[11px] text-slate-700 font-medium">
-                Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
+        {/* Hàng 3 (DÒNG MỚI RIÊNG BIỆT): Thanh thao tác hàng loạt khi có sản phẩm được tích chọn */}
+        {selectedIds.length > 0 && (
+          <div className="px-4 py-2 bg-blue-50/60 flex flex-wrap items-center justify-between gap-2.5 rounded-b-2xl animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+              <span>
+                Đã chọn: <strong className="text-blue-700 font-mono text-sm">{selectedIds.length}</strong> SP
               </span>
+            </div>
 
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {/* Nút: Tự sửa Nhóm & Loại thủ công */}
               <button
                 type="button"
@@ -830,7 +934,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   onClick={() => {
                     onSetCompareProducts(selectedIds.slice(0, 5));
                   }}
-                  className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
+                  className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer px-1 py-0.5"
                   title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
                 >
                   Đưa 5 SP đầu vào so sánh
@@ -854,7 +958,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   setSelectedIds([]);
                   onSetCompareProducts([]);
                 }}
-                className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
+                className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer px-1 py-0.5"
               >
                 Bỏ chọn
               </button>
@@ -862,13 +966,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <button
                 type="button"
                 onClick={handleDeleteSelected}
-                className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
+                className="text-xs text-red-600 hover:underline font-medium cursor-pointer px-1 py-0.5"
               >
                 Xóa ({selectedIds.length})
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
 
@@ -925,6 +1029,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       );
                     }
 
+                    const isSortable = !['checkbox', 'thumbnail', 'actions'].includes(col.id);
+                    const isCurrentSorted = sortConfig?.key === col.id;
+                    const sortDirection = isCurrentSorted ? sortConfig.direction : null;
+
                     return (
                       <th
                         key={col.id}
@@ -941,13 +1049,45 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                                 isLastPinned ? 'border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]' : ''
                               }`
                             : 'z-20 bg-slate-50/95'
-                        } border-r border-slate-200 last:border-r-0`}
+                        } border-r border-slate-200 last:border-r-0 ${isSortable ? 'cursor-pointer hover:bg-slate-100/90 transition-colors' : ''}`}
+                        onClick={isSortable ? () => handleSort(col.id) : undefined}
+                        title={
+                          isSortable
+                            ? isCurrentSorted
+                              ? sortDirection === 'asc'
+                                ? `Đang sắp xếp A-Z (click để đổi sang Z-A)`
+                                : `Đang sắp xếp Z-A (click để bỏ sắp xếp)`
+                              : `Click vào tiêu đề để sắp xếp A-Z`
+                            : undefined
+                        }
                       >
-                        <span className="truncate block pr-1.5 font-semibold text-slate-700">{col.label}</span>
+                        <div className={`flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                          <span className={`truncate font-semibold ${isCurrentSorted ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                            {col.label}
+                          </span>
+
+                          {/* Biểu tượng sắp xếp A-Z / Z-A */}
+                          {isSortable && (
+                            <span className="shrink-0 transition-all">
+                              {isCurrentSorted ? (
+                                sortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
+                                ) : (
+                                  <ArrowDown className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
+                                )
+                              ) : (
+                                <ChevronsUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              )}
+                            </span>
+                          )}
+                        </div>
 
                         {/* TAY CẦM KÉO CHỈNH KÍCH THƯỚC CỘT TRỰC TIẾP TRÊN WEB */}
                         <div
-                          onMouseDown={e => handleStartResize(col.id, e)}
+                          onMouseDown={e => {
+                            e.stopPropagation();
+                            handleStartResize(col.id, e);
+                          }}
                           title="Kéo sang trái/phải để chỉnh độ rộng cột trực tiếp"
                           className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize hover:bg-blue-500/60 group-hover:bg-slate-300 transition-colors z-30"
                         />
