@@ -1,13 +1,11 @@
 import { Product, SpecItem } from '../types/product';
 
 /**
- * Định dạng tiền tệ VND (vd: 1.500.000 ₫)
+ * Định dạng số tiền VND (vd: 1.500.000 - đã bỏ chữ đ phía sau theo yêu cầu)
  */
 export function formatVND(amount: number): string {
-  if (amount === undefined || amount === null || isNaN(amount)) return '0 ₫';
+  if (amount === undefined || amount === null || isNaN(amount)) return '0';
   return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
     maximumFractionDigits: 0,
   }).format(amount);
 }
@@ -16,14 +14,14 @@ export function formatVND(amount: number): string {
  * Định dạng số gọn (vd: 1.5M, 850K)
  */
 export function formatCompactVND(amount: number): string {
-  if (!amount) return '0 ₫';
+  if (!amount) return '0';
   if (amount >= 1_000_000) {
-    return `${(amount / 1_000_000).toFixed(1).replace('.0', '')}M ₫`;
+    return `${(amount / 1_000_000).toFixed(1).replace('.0', '')}M`;
   }
   if (amount >= 1_000) {
-    return `${(amount / 1_000).toFixed(0)}K ₫`;
+    return `${(amount / 1_000).toFixed(0)}K`;
   }
-  return `${amount} ₫`;
+  return `${amount}`;
 }
 
 /**

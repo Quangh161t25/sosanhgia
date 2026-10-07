@@ -836,7 +836,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       {formatVND(product.pricing.costPrice)}
                     </span>
                   ) : (
-                    <span className="font-mono text-muted-foreground text-xs">•••••• ₫ (Ẩn)</span>
+                    <span className="font-mono text-muted-foreground text-xs">•••••• (Ẩn)</span>
                   )}
                 </div>
 

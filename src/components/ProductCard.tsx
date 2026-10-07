@@ -179,7 +179,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   </span>
                 ) : (
                   <span className="font-mono text-slate-400 text-xs tracking-wider" title="Đang ẩn chế độ quản lý">
-                    •••••• ₫
+                    ••••••
                   </span>
                 )}
               </div>
