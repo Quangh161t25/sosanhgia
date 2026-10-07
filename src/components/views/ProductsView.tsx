@@ -278,7 +278,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return counts;
   }, [products]);
 
-  // Dữ liệu chip lọc Thương hiệu (Image 2: Tất cả, Top Brands, Khác)
+  // Dữ liệu chip lọc Thương hiệu: Liệt kê HẾT TẤT CẢ các thương hiệu có trong kho
   const brandChipsData = useMemo(() => {
     const totalCount = products.length;
     const brandMap = new Map<string, { displayName: string; count: number }>();
@@ -299,30 +299,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       }
     });
 
-    const sorted = Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
-
-    const MAX_TOP_BRANDS = 6;
-    let topBrands: { name: string; count: number }[] = [];
-    let otherCount = noBrandCount;
-    const topBrandNamesLower = new Set<string>();
-
-    if (sorted.length <= 7 && noBrandCount === 0) {
-      topBrands = sorted.map(b => ({ name: b.displayName, count: b.count }));
-    } else {
-      const topSlice = sorted.slice(0, MAX_TOP_BRANDS);
-      topBrands = topSlice.map(b => ({ name: b.displayName, count: b.count }));
-      topSlice.forEach(b => topBrandNamesLower.add(b.displayName.toLowerCase()));
-
-      sorted.slice(MAX_TOP_BRANDS).forEach(b => {
-        otherCount += b.count;
-      });
-    }
+    // Sắp xếp các brand theo số lượng sản phẩm giảm dần
+    const allBrands = Array.from(brandMap.values()).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.displayName.localeCompare(b.displayName, 'vi', { sensitivity: 'base' });
+    });
 
     return {
       totalCount,
-      topBrands,
-      otherCount,
-      topBrandNamesLower,
+      allBrands,
+      noBrandCount,
     };
   }, [products]);
 
@@ -370,9 +356,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         }
       }
 
-      if (selectedBrand === '__other__') {
-        const b = p.brand?.trim().toLowerCase();
-        if (b && brandChipsData.topBrandNamesLower.has(b)) return false;
+      if (selectedBrand === '__nobrand__') {
+        if (p.brand?.trim()) return false;
       } else if (selectedBrand && (!p.brand || p.brand.trim().toLowerCase() !== selectedBrand.trim().toLowerCase())) {
         return false;
       }
@@ -567,135 +552,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* KHUNG TRÊN: TIÊU ĐỀ + BỘ LỌC (CỐ ĐỊNH TRÊN CÙNG KHI LĂN CHUỘT) */}
       <div className="shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs relative z-30">
         
-        {/* Hàng 1: Thanh lọc nhanh theo Thương hiệu (Tất cả, Top Brands, Khác) */}
-        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
-          {/* Danh sách chip lọc thương hiệu (Image 2) */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5">
-            {/* Nút Tất cả */}
-            <button
-              type="button"
-              onClick={() => setSelectedBrand('')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
-                !selectedBrand
-                  ? 'bg-blue-600 text-white font-bold shadow-xs'
-                  : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
-              }`}
-            >
-              Tất cả ({brandChipsData.totalCount})
-            </button>
-
-            {/* Các thương hiệu hàng đầu */}
-            {brandChipsData.topBrands.map(b => {
-              const isActive = selectedBrand.toLowerCase() === b.name.toLowerCase();
-              return (
-                <button
-                  key={b.name}
-                  type="button"
-                  onClick={() => setSelectedBrand(isActive ? '' : b.name)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white font-bold shadow-xs'
-                      : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
-                  }`}
-                >
-                  {b.name} ({b.count})
-                </button>
-              );
-            })}
-
-            {/* Khác */}
-            {brandChipsData.otherCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedBrand(selectedBrand === '__other__' ? '' : '__other__')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
-                  selectedBrand === '__other__'
-                    ? 'bg-blue-600 text-white font-bold shadow-xs'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
-                }`}
-              >
-                Khác ({brandChipsData.otherCount})
-              </button>
-            )}
-          </div>
-
-          {/* VÙNG ĐIỀU KHIỂN HÀNG LOẠT: Chỉ hiển thị khi có sản phẩm được tích chọn */}
-          {selectedIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/95 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs text-xs">
-              <span className="text-[11px] text-slate-700 font-medium">
-                Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
-              </span>
-
-              {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
-              <button
-                type="button"
-                onClick={() => setIsBatchCategoryModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Dùng AI phân tích Tên & Mô tả để tự động sửa Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>AI Phân loại ({selectedIds.length})</span>
-              </button>
-
-              {/* Nút 2: Bóc tách thông số kỹ thuật bằng AI */}
-              <button
-                type="button"
-                onClick={() => setIsBatchSpecsModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Dùng AI trích xuất bảng thông số kỹ thuật cho các sản phẩm đã chọn"
-              >
-                <Zap className="w-3.5 h-3.5 fill-white" />
-                <span>AI Bóc tách ({selectedIds.length})</span>
-              </button>
-
-              {selectedIds.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSetCompareProducts(selectedIds.slice(0, 5));
-                  }}
-                  className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
-                  title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
-                >
-                  Đưa 5 SP đầu vào so sánh
-                </button>
-              )}
-
-              {canCompare && (
-                <button
-                  type="button"
-                  onClick={onOpenCompare}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                >
-                  <Scale className="w-3.5 h-3.5" />
-                  <span>So sánh 5 SP</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedIds([]);
-                  onSetCompareProducts([]);
-                }}
-                className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
-              >
-                Bỏ chọn
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteSelected}
-                className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
-              >
-                Xóa ({selectedIds.length})
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Hàng 2: Thanh công cụ lọc & Tác vụ */}
-        <div className="p-3.5 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl">
+        {/* Hàng 1: Thanh công cụ lọc & Tác vụ */}
+        <div className="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 rounded-t-2xl">
           
           {/* Vùng lọc bên trái */}
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
@@ -720,16 +578,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
-
-            {/* Bộ lọc Thương hiệu: Sắp xếp A-Z + Gõ gợi ý */}
-            <SearchableFilterSelect
-              label="Thương hiệu"
-              placeholder="Tất cả Thương hiệu"
-              value={selectedBrand}
-              onChange={setSelectedBrand}
-              options={brands}
-              counts={brandCounts}
-            />
 
             {/* Bộ lọc Nhóm: Sắp xếp A-Z + Gõ gợi ý */}
             <SearchableFilterSelect
@@ -851,6 +699,133 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </button>
           </div>
 
+        </div>
+
+        {/* Hàng 2: Thanh lọc nhanh theo Thương hiệu (Tất cả, các thương hiệu trong kho) + Thao tác hàng loạt */}
+        <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60 rounded-b-2xl">
+          {/* Danh sách chip lọc thương hiệu */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5 flex-1 min-w-0">
+            {/* Nút Tất cả */}
+            <button
+              type="button"
+              onClick={() => setSelectedBrand('')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                !selectedBrand
+                  ? 'bg-blue-600 text-white font-bold shadow-xs'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+              }`}
+            >
+              Tất cả ({brandChipsData.totalCount})
+            </button>
+
+            {/* Hết tất cả các thương hiệu trong kho */}
+            {brandChipsData.allBrands.map(b => {
+              const isActive = selectedBrand.toLowerCase() === b.displayName.toLowerCase();
+              return (
+                <button
+                  key={b.displayName}
+                  type="button"
+                  onClick={() => setSelectedBrand(isActive ? '' : b.displayName)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white font-bold shadow-xs'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+                  }`}
+                >
+                  {b.displayName} ({b.count})
+                </button>
+              );
+            })}
+
+            {/* Chưa có hãng (nếu có sản phẩm không điền hãng) */}
+            {brandChipsData.noBrandCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedBrand(selectedBrand === '__nobrand__' ? '' : '__nobrand__')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  selectedBrand === '__nobrand__'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+                }`}
+              >
+                Chưa có hãng ({brandChipsData.noBrandCount})
+              </button>
+            )}
+          </div>
+
+          {/* VÙNG ĐIỀU KHIỂN HÀNG LOẠT: Chỉ hiển thị khi có sản phẩm được tích chọn */}
+          {selectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/95 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs text-xs">
+              <span className="text-[11px] text-slate-700 font-medium">
+                Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
+              </span>
+
+              {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
+              <button
+                type="button"
+                onClick={() => setIsBatchCategoryModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Dùng AI phân tích Tên & Mô tả để tự động sửa Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>AI Phân loại ({selectedIds.length})</span>
+              </button>
+
+              {/* Nút 2: Bóc tách thông số kỹ thuật bằng AI */}
+              <button
+                type="button"
+                onClick={() => setIsBatchSpecsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Dùng AI trích xuất bảng thông số kỹ thuật cho các sản phẩm đã chọn"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white" />
+                <span>AI Bóc tách ({selectedIds.length})</span>
+              </button>
+
+              {selectedIds.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSetCompareProducts(selectedIds.slice(0, 5));
+                  }}
+                  className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
+                  title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
+                >
+                  Đưa 5 SP đầu vào so sánh
+                </button>
+              )}
+
+              {canCompare && (
+                <button
+                  type="button"
+                  onClick={onOpenCompare}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>So sánh 5 SP</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIds([]);
+                  onSetCompareProducts([]);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
+              >
+                Bỏ chọn
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
+              >
+                Xóa ({selectedIds.length})
+              </button>
+            </div>
+          )}
         </div>
 
       </div>
