@@ -565,7 +565,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     <div className="w-full h-full flex flex-col min-h-0 px-3 sm:px-6 py-2.5 space-y-2.5 overflow-hidden">
       
       {/* KHUNG TRÊN: TIÊU ĐỀ + BỘ LỌC (CỐ ĐỊNH TRÊN CÙNG KHI LĂN CHUỘT) */}
-      <div className="shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs relative z-20">
+      <div className="shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs relative z-30">
         
         {/* Hàng 1: Thanh lọc nhanh theo Thương hiệu (Tất cả, Top Brands, Khác) */}
         <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
@@ -857,7 +857,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       {/* KHUNG DƯỚI: DANH SÁCH SẢN PHẨM (BẢNG DỮ LIỆU FULL WIDTH + CỐ ĐỊNH TIÊU ĐỀ CỘT KHI LĂN) */}
       {viewMode === 'table' ? (
-        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs relative z-10">
           <div className="w-full flex-1 min-h-0 overflow-auto custom-scrollbar">
             <table
               style={{ width: `${totalTableWidth}px`, minWidth: '100%' }}
@@ -1542,7 +1542,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       ) : (
         /* Dạng thẻ Cards */
-        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="w-full flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs relative z-10">
           <div className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
             <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {paginatedProducts.map(product => (

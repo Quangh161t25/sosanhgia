@@ -124,7 +124,7 @@ export const SearchableFilterSelect: React.FC<SearchableFilterSelectProps> = ({
   const defaultPlaceholder = placeholder || `Tất cả ${label}`;
 
   return (
-    <div ref={containerRef} className={`relative min-w-[140px] max-w-[210px] flex-1 ${className}`}>
+    <div ref={containerRef} className={`relative min-w-[140px] max-w-[210px] flex-1 ${isOpen ? 'z-50' : 'z-auto'} ${className}`}>
       {/* Ô nhập liệu kiêm ô chọn */}
       <div
         className={`relative flex items-center bg-slate-50 hover:bg-white rounded-lg border transition-all ${
@@ -187,8 +187,8 @@ export const SearchableFilterSelect: React.FC<SearchableFilterSelectProps> = ({
       {isOpen && (
         <div
           ref={listRef}
-          style={{ zIndex: 60 }}
-          className="absolute left-0 top-full mt-1 w-full min-w-[200px] max-w-[280px] max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-xl py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+          style={{ zIndex: 90 }}
+          className="absolute left-0 top-full mt-1 w-full min-w-[200px] max-w-[280px] max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl ring-1 ring-slate-900/10 py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
         >
           {/* Tùy chọn "Tất cả" ở đầu */}
           <button
