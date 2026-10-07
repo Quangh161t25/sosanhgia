@@ -20,6 +20,7 @@ import {
   Zap,
   ChevronDown,
   ZoomIn,
+  FolderEdit,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -30,6 +31,7 @@ import { SearchableFilterSelect } from './SearchableFilterSelect';
 import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
 import { ExcelImportModal } from '../ExcelImportModal';
 import { BatchCategoryModal } from '../modals/BatchCategoryModal';
+import { BatchManualCategoryModal } from '../modals/BatchManualCategoryModal';
 import { BatchSpecsModal } from '../modals/BatchSpecsModal';
 import { ProductImageLightboxModal } from '../ProductImageLightboxModal';
 
@@ -96,14 +98,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
-  const [selectedType, setSelectedType] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [zoomProduct, setZoomProduct] = useState<Product | null>(null);
 
   // 1. CHỌN HÀNG LOẠT & ĐỒNG BỘ VỚI DANH SÁCH SO SÁNH
   const [selectedIds, setSelectedIds] = useState<string[]>(() => compareIds);
   const [isBatchCategoryModalOpen, setIsBatchCategoryModalOpen] = useState(false);
+  const [isManualCategoryModalOpen, setIsManualCategoryModalOpen] = useState(false);
   const [isBatchSpecsModalOpen, setIsBatchSpecsModalOpen] = useState(false);
+  const [inlineEditingCell, setInlineEditingCell] = useState<{
+    productId: string;
+    field: 'categoryGroup' | 'categoryType';
+  } | null>(null);
+
+  // Cập nhật nhanh 1 trường dữ liệu (Nhóm / Loại) trực tiếp từ bảng
+  const handleUpdateSingleField = (productId: string, field: 'categoryGroup' | 'categoryType', value: string) => {
+    if (!onUpdateProducts) return;
+    const nextProducts = products.map(p => {
+      if (p.id === productId) {
+        return {
+          ...p,
+          [field]: value.trim(),
+          updatedAt: new Date().toISOString().split('T')[0],
+        };
+      }
+      return p;
+    });
+    onUpdateProducts(nextProducts);
+  };
 
   // Danh sách các đối tượng sản phẩm đang được tick chọn
   const selectedProducts = useMemo(() => {
@@ -362,17 +385,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         return false;
       }
 
-      if (selectedGroup && (!p.categoryGroup || p.categoryGroup.trim().toLowerCase() !== selectedGroup.trim().toLowerCase())) return false;
-      if (selectedType && (!p.categoryType || p.categoryType.trim().toLowerCase() !== selectedType.trim().toLowerCase())) return false;
+      if (selectedGroups.length > 0) {
+        const g = p.categoryGroup?.trim().toLowerCase();
+        if (!g || !selectedGroups.some(sel => sel.trim().toLowerCase() === g)) return false;
+      }
+      if (selectedTypes.length > 0) {
+        const t = p.categoryType?.trim().toLowerCase();
+        if (!t || !selectedTypes.some(sel => sel.trim().toLowerCase() === t)) return false;
+      }
 
       return true;
     });
-  }, [products, searchQuery, selectedBrand, selectedGroup, selectedType, brandChipsData]);
+  }, [products, searchQuery, selectedBrand, selectedGroups, selectedTypes]);
 
   // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm hoặc lọc
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedBrand, selectedGroup, selectedType]);
+  }, [searchQuery, selectedBrand, selectedGroups, selectedTypes]);
 
   // Tổng số trang
   const totalPages = useMemo(() => {
@@ -579,35 +608,37 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               />
             </div>
 
-            {/* Bộ lọc Nhóm: Sắp xếp A-Z + Gõ gợi ý */}
+            {/* Bộ lọc Nhóm: Sắp xếp A-Z + Gõ gợi ý + Checkbox chọn nhiều */}
             <SearchableFilterSelect
               label="Nhóm"
               placeholder="Tất cả Nhóm"
-              value={selectedGroup}
-              onChange={setSelectedGroup}
+              multiple
+              selectedValues={selectedGroups}
+              onMultiChange={setSelectedGroups}
               options={categoryGroups}
               counts={groupCounts}
             />
 
-            {/* Bộ lọc Loại: Sắp xếp A-Z + Gõ gợi ý */}
+            {/* Bộ lọc Loại: Sắp xếp A-Z + Gõ gợi ý + Checkbox chọn nhiều */}
             <SearchableFilterSelect
               label="Loại"
               placeholder="Tất cả Loại"
-              value={selectedType}
-              onChange={setSelectedType}
+              multiple
+              selectedValues={selectedTypes}
+              onMultiChange={setSelectedTypes}
               options={categoryTypes}
               counts={typeCounts}
             />
 
             {/* Nút reset lọc */}
-            {(searchQuery || selectedBrand || selectedGroup || selectedType) && (
+            {(searchQuery || selectedBrand || selectedGroups.length > 0 || selectedTypes.length > 0) && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
                   setSelectedBrand('');
-                  setSelectedGroup('');
-                  setSelectedType('');
+                  setSelectedGroups([]);
+                  setSelectedTypes([]);
                 }}
                 title="Xóa bộ lọc"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -759,6 +790,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <span className="text-[11px] text-slate-700 font-medium">
                 Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
               </span>
+
+              {/* Nút: Tự sửa Nhóm & Loại thủ công */}
+              <button
+                type="button"
+                onClick={() => setIsManualCategoryModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Tự sửa hoặc gán nhanh Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
+              >
+                <FolderEdit className="w-3.5 h-3.5 text-white" />
+                <span>Sửa Nhóm & Loại ({selectedIds.length})</span>
+              </button>
 
               {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
               <button
@@ -1023,29 +1065,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             );
                           }
 
-                          // 3. Name
+                          // 3. Name (Đã xóa avatar chữ cái đầu theo yêu cầu)
                           if (col.id === 'name') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
-                                <div className="flex items-start gap-2">
-                                  <div
-                                    className={`w-6 h-6 rounded-full ${colorBg} text-white flex items-center justify-center font-bold text-[9px] shrink-0 shadow-2xs mt-0.5`}
-                                  >
-                                    {getInitials(prod.name)}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <span
-                                      onClick={() => onViewDetail(prod)}
-                                      className={`font-bold text-slate-900 hover:text-blue-600 cursor-pointer ${
-                                        col.wrap
-                                          ? 'whitespace-normal break-words leading-snug block'
-                                          : 'truncate whitespace-nowrap block'
-                                      }`}
-                                    >
-                                      {prod.name}
-                                    </span>
-                                  </div>
-                                </div>
+                                <span
+                                  onClick={() => onViewDetail(prod)}
+                                  className={`font-bold text-slate-900 hover:text-blue-600 cursor-pointer ${
+                                    col.wrap
+                                      ? 'whitespace-normal break-words leading-snug block'
+                                      : 'truncate whitespace-nowrap block'
+                                  }`}
+                                >
+                                  {prod.name}
+                                </span>
                               </td>
                             );
                           }
@@ -1080,32 +1113,82 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             );
                           }
 
-                          // 6. Category Group
+                          // 6. Category Group (Hỗ trợ nhấp đúp để tự sửa trực tiếp trên bảng)
                           if (col.id === 'categoryGroup') {
+                            const isEditing = inlineEditingCell?.productId === prod.id && inlineEditingCell.field === 'categoryGroup';
                             return (
                               <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-700`}>
-                                <div
-                                  className={
-                                    col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
-                                  }
-                                >
-                                  {prod.categoryGroup || '—'}
-                                </div>
+                                {isEditing ? (
+                                  <input
+                                    autoFocus
+                                    defaultValue={prod.categoryGroup || ''}
+                                    list="table-category-groups"
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        handleUpdateSingleField(prod.id, 'categoryGroup', e.currentTarget.value);
+                                        setInlineEditingCell(null);
+                                      } else if (e.key === 'Escape') {
+                                        setInlineEditingCell(null);
+                                      }
+                                    }}
+                                    onBlur={e => {
+                                      handleUpdateSingleField(prod.id, 'categoryGroup', e.currentTarget.value);
+                                      setInlineEditingCell(null);
+                                    }}
+                                    className="w-full px-1.5 py-0.5 text-xs rounded border border-blue-500 bg-white shadow-xs focus:outline-none"
+                                  />
+                                ) : (
+                                  <div
+                                    onDoubleClick={() => setInlineEditingCell({ productId: prod.id, field: 'categoryGroup' })}
+                                    title="Nhấp đúp để sửa nhanh Nhóm danh mục"
+                                    className={`group/cat flex items-center justify-between cursor-pointer hover:text-blue-600 ${
+                                      col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
+                                    }`}
+                                  >
+                                    <span>{prod.categoryGroup || '—'}</span>
+                                    <Edit2 className="w-3 h-3 text-slate-300 opacity-0 group-hover/cat:opacity-100 ml-1 shrink-0" />
+                                  </div>
+                                )}
                               </td>
                             );
                           }
 
-                          // 7. Category Type
+                          // 7. Category Type (Hỗ trợ nhấp đúp để tự sửa trực tiếp trên bảng)
                           if (col.id === 'categoryType') {
+                            const isEditing = inlineEditingCell?.productId === prod.id && inlineEditingCell.field === 'categoryType';
                             return (
                               <td key={col.id} style={cellStyle} className={`${cellBaseClass} text-xs text-slate-600`}>
-                                <div
-                                  className={
-                                    col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
-                                  }
-                                >
-                                  {prod.categoryType || '—'}
-                                </div>
+                                {isEditing ? (
+                                  <input
+                                    autoFocus
+                                    defaultValue={prod.categoryType || ''}
+                                    list="table-category-types"
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        handleUpdateSingleField(prod.id, 'categoryType', e.currentTarget.value);
+                                        setInlineEditingCell(null);
+                                      } else if (e.key === 'Escape') {
+                                        setInlineEditingCell(null);
+                                      }
+                                    }}
+                                    onBlur={e => {
+                                      handleUpdateSingleField(prod.id, 'categoryType', e.currentTarget.value);
+                                      setInlineEditingCell(null);
+                                    }}
+                                    className="w-full px-1.5 py-0.5 text-xs rounded border border-blue-500 bg-white shadow-xs focus:outline-none"
+                                  />
+                                ) : (
+                                  <div
+                                    onDoubleClick={() => setInlineEditingCell({ productId: prod.id, field: 'categoryType' })}
+                                    title="Nhấp đúp để sửa nhanh Loại sản phẩm"
+                                    className={`group/cat flex items-center justify-between cursor-pointer hover:text-blue-600 ${
+                                      col.wrap ? 'whitespace-normal break-words' : 'truncate whitespace-nowrap block max-w-full'
+                                    }`}
+                                  >
+                                    <span>{prod.categoryType || '—'}</span>
+                                    <Edit2 className="w-3 h-3 text-slate-300 opacity-0 group-hover/cat:opacity-100 ml-1 shrink-0" />
+                                  </div>
+                                )}
                               </td>
                             );
                           }
@@ -1642,6 +1725,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsManualCategoryModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Tự sửa hoặc gán nhanh Nhóm danh mục & Loại sản phẩm"
+            >
+              <FolderEdit className="w-3.5 h-3.5 text-white" />
+              <span>Sửa Nhóm & Loại</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsBatchCategoryModalOpen(true)}
               className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
               title="Dùng AI chuẩn hóa Nhóm danh mục & Loại sản phẩm"
@@ -1701,6 +1794,27 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         allProducts={products}
         onUpdateProducts={onUpdateProducts || (() => {})}
       />
+
+      {/* MODAL TỰ SỬA THỦ CÔNG NHÓM & LOẠI SẢN PHẨM HÀNG LOẠT */}
+      <BatchManualCategoryModal
+        isOpen={isManualCategoryModalOpen}
+        onClose={() => setIsManualCategoryModalOpen(false)}
+        selectedProducts={selectedProducts}
+        allProducts={products}
+        onUpdateProducts={onUpdateProducts || (() => {})}
+      />
+
+      {/* Datalist gợi ý cho việc sửa nhanh trực tiếp tại bảng */}
+      <datalist id="table-category-groups">
+        {categoryGroups.map(g => (
+          <option key={g} value={g} />
+        ))}
+      </datalist>
+      <datalist id="table-category-types">
+        {categoryTypes.map(t => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
 
       {/* MODAL BÓC TÁCH THÔNG SỐ HÀNG LOẠT BẰNG AI */}
       <BatchSpecsModal
