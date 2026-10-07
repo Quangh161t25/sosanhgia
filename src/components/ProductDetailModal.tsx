@@ -168,22 +168,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             similarPanelWidth === 'wide'
               ? 'w-[580px] md:w-[640px] lg:w-[700px] xl:w-[780px] 2xl:w-[860px] max-w-[95vw]'
               : 'w-[320px] lg:w-[350px] xl:w-[380px] 2xl:w-[400px]'
-          } bg-slate-900/95 text-white backdrop-blur-md border-r border-slate-700/80 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden transition-all`}
+          } bg-white text-slate-800 backdrop-blur-md border-r border-slate-200/90 shadow-2xl animate-in slide-in-from-left duration-200 overflow-hidden transition-all`}
         >
           {/* Header Panel */}
-          <div className="p-3 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between shrink-0">
+          <div className="p-3 border-b border-slate-200 bg-slate-50/90 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                <Sparkles className="w-4 h-4 text-blue-400" />
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200/80 shadow-2xs">
+                <Sparkles className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white flex items-center gap-1.5 leading-none">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 leading-none">
                   Sản phẩm tương tự AI
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-bold font-mono border border-blue-200/60">
                     {similarProducts.length}
                   </span>
                 </h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">
+                <p className="text-[10px] text-slate-500 mt-0.5">
                   Đối chiếu kho & so sánh cùng phân khúc
                 </p>
               </div>
@@ -193,7 +193,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={toggleSimilarPanelWidth}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                 title={similarPanelWidth === 'normal' ? 'Mở rộng ngăn trái (Xem rộng rãi hơn)' : 'Thu hẹp ngăn trái (Gọn gàng)'}
               >
                 {similarPanelWidth === 'normal' ? (
@@ -206,15 +206,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 type="button"
                 onClick={handleRefreshSimilar}
                 disabled={isLoadingSimilar}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                 title="Quét lại sản phẩm tương tự bằng AI"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSimilar ? 'animate-spin text-blue-400' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSimilar ? 'animate-spin text-blue-600' : ''}`} />
               </button>
               <button
                 type="button"
                 onClick={() => setShowSimilarPanel(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                 title="Tạm ẩn thanh gợi ý bên trái"
               >
                 <X className="w-3.5 h-3.5" />
@@ -224,14 +224,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Thanh lọc nhanh tiêu chí khi có nhiều sản phẩm */}
           {similarProducts.length > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-800 bg-slate-950/40 overflow-x-auto text-[10px] shrink-0">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50/50 overflow-x-auto text-[10px] shrink-0">
               <button
                 type="button"
                 onClick={() => setSimilarFilter('all')}
-                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'all'
-                    ? 'bg-blue-600 text-white font-bold'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Tất cả ({similarProducts.length})
@@ -239,10 +239,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSimilarFilter('compatible')}
-                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1 ${
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 ${
                   similarFilter === 'compatible'
-                    ? 'bg-amber-500 text-white font-bold shadow-xs'
-                    : 'bg-slate-800/80 text-amber-300 hover:text-white'
+                    ? 'bg-amber-500 text-white font-bold shadow-2xs'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
                 }`}
                 title="Sản phẩm tương thích cao (cùng loại, nhóm hoặc điểm tương đồng cao)"
               >
@@ -251,10 +251,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSimilarFilter('type')}
-                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'type'
-                    ? 'bg-emerald-600 text-white font-bold'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Cùng loại ({similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame).length})
@@ -262,10 +262,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSimilarFilter('group')}
-                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'group'
-                    ? 'bg-indigo-600 text-white font-bold'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Cùng nhóm ({similarProducts.filter(s => s.criteriaMatch?.groupMatch?.isSame).length})
@@ -273,10 +273,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSimilarFilter('name')}
-                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'name'
-                    ? 'bg-purple-600 text-white font-bold'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Khớp tên ({similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20).length})
@@ -285,11 +285,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           )}
 
           {/* Body: Danh sách sản phẩm tương tự */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
             {isLoadingSimilar ? (
               <div className="p-8 text-center space-y-2.5">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-400 mx-auto" />
-                <p className="text-xs text-slate-300 font-medium">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
+                <p className="text-xs text-slate-700 font-semibold">
                   AI đang phân tích sản phẩm tương tự...
                 </p>
                 <p className="text-[11px] text-slate-500">
@@ -297,24 +297,24 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </p>
               </div>
             ) : similarProducts.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 space-y-2">
-                <Package className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="p-8 text-center text-slate-500 space-y-2">
+                <Package className="w-8 h-8 text-slate-400 mx-auto" />
                 <p className="text-xs">Chưa tìm thấy sản phẩm cùng phân khúc trong kho.</p>
                 <button
                   type="button"
                   onClick={handleRefreshSimilar}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-xs font-semibold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold cursor-pointer"
                 >
                   Tìm lại
                 </button>
               </div>
             ) : displayedSimilarProducts.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 space-y-2">
+              <div className="p-6 text-center text-slate-500 space-y-2">
                 <p className="text-xs">Không có sản phẩm nào phù hợp với bộ lọc này.</p>
                 <button
                   type="button"
                   onClick={() => setSimilarFilter('all')}
-                  className="px-3 py-1 rounded-lg bg-slate-800 text-blue-300 text-xs hover:bg-slate-700 cursor-pointer"
+                  className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer shadow-2xs"
                 >
                   Hiển thị tất cả ({similarProducts.length})
                 </button>
@@ -325,14 +325,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 return (
                   <div
                     key={sim.id}
-                    className="p-3 rounded-xl bg-slate-800/85 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 transition-all space-y-2.5 shadow-md"
+                    className="p-3 rounded-xl bg-white hover:bg-blue-50/20 border border-slate-200/90 hover:border-blue-400 transition-all space-y-2.5 shadow-2xs hover:shadow-xs"
                   >
                     {/* Hàng trên: Badge điểm & SKU */}
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-xs text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-500/30">
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                         {sim.sku}
                       </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                         🔥 {similarityScore}% tương đồng
                       </span>
                     </div>
@@ -347,7 +347,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               e.stopPropagation();
                               setZoomImageProduct(sim);
                             }}
-                            className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 hover:border-blue-400 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative"
+                            className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-500 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative shadow-2xs"
                             title="Click để xem ảnh phóng to"
                           >
                             <img
@@ -357,31 +357,31 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               className="max-h-full max-w-full object-contain group-hover/simthumb:scale-110 transition-transform"
                               onError={e => {
                                 (e.currentTarget as HTMLImageElement).src =
-                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                               }}
                             />
-                            <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                            <div className="absolute inset-0 bg-black/30 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                               <ZoomIn className="w-3 h-3 text-white" />
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
+                            <h5 className="text-xs font-bold text-slate-800 hover:text-blue-600 line-clamp-2 leading-tight transition-colors" title={sim.name}>
                               {sim.name}
                             </h5>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[11px] font-mono font-bold text-amber-300">
+                              <span className="text-[11px] font-mono font-bold text-amber-600">
                                 {formatVND(sim.pricing?.retailPrice || 0)}
                               </span>
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-[10px] text-slate-500">
                                 NPP: {formatVND(sim.pricing?.distributorPrice || 0)}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
-                              <span className="text-slate-300 font-medium">{sim.brand || 'Chưa rõ hãng'}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-1">
+                              <span className="text-slate-700 font-semibold">{sim.brand || 'Chưa rõ hãng'}</span>
                               {sim.categoryType && (
                                 <>
                                   <span>•</span>
-                                  <span className="text-slate-400 truncate max-w-[140px]">{sim.categoryType}</span>
+                                  <span className="text-slate-500 truncate max-w-[140px]">{sim.categoryType}</span>
                                 </>
                               )}
                             </div>
@@ -389,46 +389,46 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         </div>
 
                         {/* Cột phải: BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ NẰM CẠNH TÊN */}
-                        <div className="sm:col-span-6 px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
-                          <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
-                            <span className="font-semibold text-slate-300 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-blue-400" />
+                        <div className="sm:col-span-6 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-[10px] space-y-1">
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                            <span className="font-semibold text-slate-700 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-blue-600" />
                               Đối chiếu 3 tiêu chí
                             </span>
-                            <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
+                            <span className="font-mono font-bold text-emerald-600">{similarityScore}đ</span>
                           </div>
 
                           {/* 1. Tên */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
+                            <div className="flex items-center gap-1 shrink-0 text-slate-500 font-medium">
                               <span>1. Tên:</span>
-                              <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
+                              <span className="font-mono text-blue-700 font-bold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
                             </div>
                             <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
                               {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
-                                <span className="text-emerald-300 font-medium truncate">
+                                <span className="text-emerald-700 font-semibold truncate">
                                   ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
                                 </span>
                               ) : (
-                                <span className="text-slate-500 italic">Khác từ khóa</span>
+                                <span className="text-slate-400 italic">Khác từ khóa</span>
                               )}
                             </div>
                           </div>
 
                           {/* 2. Nhóm */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
+                            <span className="text-slate-500 font-medium shrink-0">2. Nhóm:</span>
                             <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
                               <span
                                 className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
                                   criteriaMatch?.groupMatch?.isSame
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}
                               >
                                 {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
                               </span>
-                              <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                              <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-700' : 'text-amber-800 font-medium'}`}>
                                 {sim.categoryGroup || '(Chưa đặt)'}
                               </span>
                             </div>
@@ -436,18 +436,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
                           {/* 3. Loại */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
+                            <span className="text-slate-500 font-medium shrink-0">3. Loại:</span>
                             <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
                               <span
                                 className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
                                   criteriaMatch?.typeMatch?.isSame
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}
                               >
                                 {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
                               </span>
-                              <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                              <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-700' : 'text-amber-800 font-medium'}`}>
                                 {sim.categoryType || '(Chưa đặt)'}
                               </span>
                             </div>
@@ -463,7 +463,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               e.stopPropagation();
                               setZoomImageProduct(sim);
                             }}
-                            className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 hover:border-blue-400 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative"
+                            className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-500 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative shadow-2xs"
                             title="Click để xem ảnh phóng to"
                           >
                             <img
@@ -473,22 +473,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               className="max-h-full max-w-full object-contain group-hover/simthumb:scale-110 transition-transform"
                               onError={e => {
                                 (e.currentTarget as HTMLImageElement).src =
-                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                               }}
                             />
-                            <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                            <div className="absolute inset-0 bg-black/30 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                               <ZoomIn className="w-3 h-3 text-white" />
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
+                            <h5 className="text-xs font-bold text-slate-800 hover:text-blue-600 line-clamp-2 leading-tight transition-colors" title={sim.name}>
                               {sim.name}
                             </h5>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[11px] font-mono font-bold text-amber-300">
+                              <span className="text-[11px] font-mono font-bold text-amber-600">
                                 {formatVND(sim.pricing?.retailPrice || 0)}
                               </span>
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-[10px] text-slate-500">
                                 NPP: {formatVND(sim.pricing?.distributorPrice || 0)}
                               </span>
                             </div>
@@ -496,46 +496,46 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         </div>
 
                         {/* BẢNG ĐỐI CHIẾU 3 TIÊU CHÍ SIÊU GỌN */}
-                        <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] space-y-1">
-                          <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
-                            <span className="font-semibold text-slate-300 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-blue-400" />
+                        <div className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-[10px] space-y-1">
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                            <span className="font-semibold text-slate-700 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-blue-600" />
                               Đối chiếu 3 tiêu chí
                             </span>
-                            <span className="font-mono font-bold text-emerald-400">{similarityScore}đ</span>
+                            <span className="font-mono font-bold text-emerald-600">{similarityScore}đ</span>
                           </div>
 
                           {/* 1. Tên */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <div className="flex items-center gap-1 shrink-0 text-slate-400 font-medium">
+                            <div className="flex items-center gap-1 shrink-0 text-slate-500 font-medium">
                               <span>1. Tên:</span>
-                              <span className="font-mono text-blue-300 font-semibold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
+                              <span className="font-mono text-blue-700 font-bold">{criteriaMatch?.nameMatch?.score ?? 0}%</span>
                             </div>
                             <div className="truncate text-right" title={criteriaMatch?.nameMatch?.commonWords?.join(', ') || ''}>
                               {criteriaMatch?.nameMatch?.commonWords && criteriaMatch.nameMatch.commonWords.length > 0 ? (
-                                <span className="text-emerald-300 font-medium truncate">
+                                <span className="text-emerald-700 font-semibold truncate">
                                   ✓ {criteriaMatch.nameMatch.commonWords.slice(0, 3).join(', ')}
                                 </span>
                               ) : (
-                                <span className="text-slate-500 italic">Khác từ khóa</span>
+                                <span className="text-slate-400 italic">Khác từ khóa</span>
                               )}
                             </div>
                           </div>
 
                           {/* 2. Nhóm */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <span className="text-slate-400 font-medium shrink-0">2. Nhóm:</span>
+                            <span className="text-slate-500 font-medium shrink-0">2. Nhóm:</span>
                             <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryGroup || 'Chưa đặt'}`}>
                               <span
                                 className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
                                   criteriaMatch?.groupMatch?.isSame
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}
                               >
                                 {criteriaMatch?.groupMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
                               </span>
-                              <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                              <span className={`truncate ${criteriaMatch?.groupMatch?.isSame ? 'text-slate-700' : 'text-amber-800 font-medium'}`}>
                                 {sim.categoryGroup || '(Chưa đặt)'}
                               </span>
                             </div>
@@ -543,18 +543,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
                           {/* 3. Loại */}
                           <div className="flex items-center justify-between gap-1.5 leading-tight">
-                            <span className="text-slate-400 font-medium shrink-0">3. Loại:</span>
+                            <span className="text-slate-500 font-medium shrink-0">3. Loại:</span>
                             <div className="flex items-center gap-1 truncate" title={`SP này: ${sim.categoryType || 'Chưa đặt'}`}>
                               <span
                                 className={`px-1 py-0.2 rounded text-[9px] font-bold shrink-0 ${
                                   criteriaMatch?.typeMatch?.isSame
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}
                               >
                                 {criteriaMatch?.typeMatch?.isSame ? '✓ Cùng' : '≠ Khác'}
                               </span>
-                              <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-300' : 'text-amber-200'}`}>
+                              <span className={`truncate ${criteriaMatch?.typeMatch?.isSame ? 'text-slate-700' : 'text-amber-800 font-medium'}`}>
                                 {sim.categoryType || '(Chưa đặt)'}
                               </span>
                             </div>
@@ -564,15 +564,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     )}
 
                     {/* Nút tác vụ nhanh */}
-                    <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-slate-700/50">
+                    <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-slate-200/80">
                       {onSelectProduct && (
                         <button
                           type="button"
                           onClick={() => onSelectProduct(sim)}
-                          className="py-1 px-2.5 rounded-lg bg-slate-700/70 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                          className="py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                           title="Xem chi tiết sản phẩm này"
                         >
-                          <Eye className="w-3 h-3 text-slate-400" />
+                          <Eye className="w-3 h-3 text-slate-500" />
                           <span>Xem chi tiết</span>
                         </button>
                       )}
@@ -581,8 +581,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         onClick={() => onToggleCompare(sim)}
                         className={`py-1 px-2.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                           isItemComparing
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                            : 'bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30'
+                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
                         }`}
                         title="Đưa vào so sánh"
                       >
