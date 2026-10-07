@@ -19,6 +19,7 @@ import {
   Sparkles,
   Zap,
   ChevronDown,
+  ZoomIn,
 } from 'lucide-react';
 import { Product } from '../../types/product';
 import { ProductCard } from '../ProductCard';
@@ -30,6 +31,7 @@ import { GoogleSheetsSyncModal } from '../GoogleSheetsSyncModal';
 import { ExcelImportModal } from '../ExcelImportModal';
 import { BatchCategoryModal } from '../modals/BatchCategoryModal';
 import { BatchSpecsModal } from '../modals/BatchSpecsModal';
+import { ProductImageLightboxModal } from '../ProductImageLightboxModal';
 
 const COLUMN_STORAGE_KEY = 'procompare_table_columns_v6';
 const DENSITY_STORAGE_KEY = 'procompare_table_density';
@@ -96,6 +98,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedType, setSelectedType] = useState('');
+  const [zoomProduct, setZoomProduct] = useState<Product | null>(null);
 
   // 1. CHỌN HÀNG LOẠT & ĐỒNG BỘ VỚI DANH SÁCH SO SÁNH
   const [selectedIds, setSelectedIds] = useState<string[]>(() => compareIds);
@@ -275,6 +278,54 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return counts;
   }, [products]);
 
+  // Dữ liệu chip lọc Thương hiệu (Image 2: Tất cả, Top Brands, Khác)
+  const brandChipsData = useMemo(() => {
+    const totalCount = products.length;
+    const brandMap = new Map<string, { displayName: string; count: number }>();
+    let noBrandCount = 0;
+
+    products.forEach(p => {
+      const rawBrand = p.brand?.trim();
+      if (!rawBrand) {
+        noBrandCount++;
+        return;
+      }
+      const lower = rawBrand.toLowerCase();
+      const existing = brandMap.get(lower);
+      if (existing) {
+        existing.count++;
+      } else {
+        brandMap.set(lower, { displayName: rawBrand, count: 1 });
+      }
+    });
+
+    const sorted = Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
+
+    const MAX_TOP_BRANDS = 6;
+    let topBrands: { name: string; count: number }[] = [];
+    let otherCount = noBrandCount;
+    const topBrandNamesLower = new Set<string>();
+
+    if (sorted.length <= 7 && noBrandCount === 0) {
+      topBrands = sorted.map(b => ({ name: b.displayName, count: b.count }));
+    } else {
+      const topSlice = sorted.slice(0, MAX_TOP_BRANDS);
+      topBrands = topSlice.map(b => ({ name: b.displayName, count: b.count }));
+      topSlice.forEach(b => topBrandNamesLower.add(b.displayName.toLowerCase()));
+
+      sorted.slice(MAX_TOP_BRANDS).forEach(b => {
+        otherCount += b.count;
+      });
+    }
+
+    return {
+      totalCount,
+      topBrands,
+      otherCount,
+      topBrandNamesLower,
+    };
+  }, [products]);
+
   const groupCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     products.forEach(p => {
@@ -319,13 +370,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         }
       }
 
-      if (selectedBrand && (!p.brand || p.brand.trim().toLowerCase() !== selectedBrand.trim().toLowerCase())) return false;
+      if (selectedBrand === '__other__') {
+        const b = p.brand?.trim().toLowerCase();
+        if (b && brandChipsData.topBrandNamesLower.has(b)) return false;
+      } else if (selectedBrand && (!p.brand || p.brand.trim().toLowerCase() !== selectedBrand.trim().toLowerCase())) {
+        return false;
+      }
+
       if (selectedGroup && (!p.categoryGroup || p.categoryGroup.trim().toLowerCase() !== selectedGroup.trim().toLowerCase())) return false;
       if (selectedType && (!p.categoryType || p.categoryType.trim().toLowerCase() !== selectedType.trim().toLowerCase())) return false;
 
       return true;
     });
-  }, [products, searchQuery, selectedBrand, selectedGroup, selectedType]);
+  }, [products, searchQuery, selectedBrand, selectedGroup, selectedType, brandChipsData]);
 
   // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm hoặc lọc
   useEffect(() => {
@@ -510,111 +567,131 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* KHUNG TRÊN: TIÊU ĐỀ + BỘ LỌC (CỐ ĐỊNH TRÊN CÙNG KHI LĂN CHUỘT) */}
       <div className="shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs relative z-20">
         
-        {/* Hàng 1: Tabs nhỏ + Bộ điều khiển so sánh (Đủ 5 sản phẩm mới so sánh) */}
-        <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
-          
-          {/* Tiêu đề & Đếm số lượng sản phẩm */}
-          <div className="flex items-center gap-2.5">
-            <span className="text-sm font-bold text-slate-800">
-              Sản phẩm
-            </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {totalFilteredCount} sản phẩm
-            </span>
+        {/* Hàng 1: Thanh lọc nhanh theo Thương hiệu (Tất cả, Top Brands, Khác) */}
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
+          {/* Danh sách chip lọc thương hiệu (Image 2) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5">
+            {/* Nút Tất cả */}
+            <button
+              type="button"
+              onClick={() => setSelectedBrand('')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
+                !selectedBrand
+                  ? 'bg-blue-600 text-white font-bold shadow-xs'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+              }`}
+            >
+              Tất cả ({brandChipsData.totalCount})
+            </button>
+
+            {/* Các thương hiệu hàng đầu */}
+            {brandChipsData.topBrands.map(b => {
+              const isActive = selectedBrand.toLowerCase() === b.name.toLowerCase();
+              return (
+                <button
+                  key={b.name}
+                  type="button"
+                  onClick={() => setSelectedBrand(isActive ? '' : b.name)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white font-bold shadow-xs'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+                  }`}
+                >
+                  {b.name} ({b.count})
+                </button>
+              );
+            })}
+
+            {/* Khác */}
+            {brandChipsData.otherCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedBrand(selectedBrand === '__other__' ? '' : '__other__')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
+                  selectedBrand === '__other__'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs font-medium'
+                }`}
+              >
+                Khác ({brandChipsData.otherCount})
+              </button>
+            )}
           </div>
 
-          {/* VÙNG ĐIỀU KHIỂN SO SÁNH: ĐỦ 5 SP MỚI MỞ NÚT SO SÁNH */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {selectedIds.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/90 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs">
-                <span className="text-[11px] text-slate-700 font-medium">
-                  Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
-                </span>
+          {/* VÙNG ĐIỀU KHIỂN HÀNG LOẠT: Chỉ hiển thị khi có sản phẩm được tích chọn */}
+          {selectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100/95 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs text-xs">
+              <span className="text-[11px] text-slate-700 font-medium">
+                Đã chọn: <strong className="text-blue-700">{selectedIds.length}</strong> SP
+              </span>
 
-                {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
-                <button
-                  type="button"
-                  onClick={() => setIsBatchCategoryModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
-                  title="Dùng AI phân tích Tên & Mô tả để tự động sửa Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>AI Phân loại danh mục ({selectedIds.length})</span>
-                </button>
+              {/* Nút 1: Chuẩn hóa Nhóm & Loại bằng AI */}
+              <button
+                type="button"
+                onClick={() => setIsBatchCategoryModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Dùng AI phân tích Tên & Mô tả để tự động sửa Nhóm danh mục và Loại sản phẩm cho các sản phẩm đã chọn"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>AI Phân loại ({selectedIds.length})</span>
+              </button>
 
-                {/* Nút 2: Bóc tách thông số kỹ thuật bằng AI */}
-                <button
-                  type="button"
-                  onClick={() => setIsBatchSpecsModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
-                  title="Dùng AI trích xuất bảng thông số kỹ thuật cho các sản phẩm đã chọn"
-                >
-                  <Zap className="w-3.5 h-3.5 fill-white" />
-                  <span>AI Bóc tách thông số ({selectedIds.length})</span>
-                </button>
+              {/* Nút 2: Bóc tách thông số kỹ thuật bằng AI */}
+              <button
+                type="button"
+                onClick={() => setIsBatchSpecsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Dùng AI trích xuất bảng thông số kỹ thuật cho các sản phẩm đã chọn"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white" />
+                <span>AI Bóc tách ({selectedIds.length})</span>
+              </button>
 
-                {selectedIds.length > 5 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSetCompareProducts(selectedIds.slice(0, 5));
-                    }}
-                    className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
-                    title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
-                  >
-                    Đưa 5 SP đầu vào so sánh
-                  </button>
-                )}
-
+              {selectedIds.length > 5 && (
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedIds([]);
-                    onSetCompareProducts([]);
+                    onSetCompareProducts(selectedIds.slice(0, 5));
                   }}
-                  className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
+                  className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
+                  title="Đưa 5 sản phẩm đầu tiên được chọn vào so sánh"
                 >
-                  Bỏ chọn
+                  Đưa 5 SP đầu vào so sánh
                 </button>
+              )}
 
+              {canCompare && (
                 <button
                   type="button"
-                  onClick={handleDeleteSelected}
-                  className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
+                  onClick={onOpenCompare}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
                 >
-                  Xóa ({selectedIds.length})
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>So sánh 5 SP</span>
                 </button>
-              </div>
-            )}
+              )}
 
-            {/* NÚT SO SÁNH: ĐỦ 5 SP MỚI BẬT SÁNG, DƯỚI HOẶC TRÊN 5 THÌ MỜ */}
-            {canCompare ? (
               <button
                 type="button"
-                onClick={onOpenCompare}
-                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/25 animate-pulse transition-all cursor-pointer"
+                onClick={() => {
+                  setSelectedIds([]);
+                  onSetCompareProducts([]);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium cursor-pointer"
               >
-                <Scale className="w-3.5 h-3.5" />
-                <span>So Sánh Ngay 5 Sản Phẩm &rarr;</span>
+                Bỏ chọn
               </button>
-            ) : (
+
               <button
                 type="button"
-                disabled
-                title="Cần chọn đủ đúng 5 sản phẩm để so sánh"
-                className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-not-allowed select-none opacity-70"
+                onClick={handleDeleteSelected}
+                className="text-xs text-red-600 hover:underline font-medium cursor-pointer"
               >
-                <Scale className="w-3.5 h-3.5 text-slate-300" />
-                {compareIds.length === 0 ? (
-                  <span>Chọn đủ 5 sản phẩm để so sánh (0/5)</span>
-                ) : compareIds.length < 5 ? (
-                  <span>Đã đưa vào so sánh: {compareIds.length}/5 (Cần đủ 5 SP)</span>
-                ) : (
-                  <span>Đang chọn {compareIds.length} SP (Chỉ so sánh đúng 5 SP)</span>
-                )}
+                Xóa ({selectedIds.length})
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Hàng 2: Thanh công cụ lọc & Tác vụ */}
@@ -931,25 +1008,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             );
                           }
 
-                          // 2. Thumbnail
+                          // 2. Thumbnail: Click vào ảnh xem ảnh mở rộng (Lightbox Zoom)
                           if (col.id === 'thumbnail') {
                             return (
                               <td key={col.id} style={cellStyle} className={cellBaseClass}>
                                 <div className="flex items-center justify-center">
                                   {prod.thumbnail ? (
-                                    <img
-                                      src={prod.thumbnail}
-                                      alt={prod.name}
-                                      loading="lazy"
-                                      decoding="async"
-                                      className="w-8 h-8 object-cover rounded-lg border border-slate-200 shadow-2xs hover:scale-125 transition-transform cursor-pointer bg-white"
-                                      onClick={() => onViewDetail(prod)}
-                                      onError={e => {
-                                        const imgEl = e.currentTarget as HTMLImageElement;
-                                        imgEl.onerror = null;
-                                        imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                    <div
+                                      className="relative group/thumb cursor-zoom-in"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoomProduct(prod);
                                       }}
-                                    />
+                                      title="Click để xem ảnh mở rộng"
+                                    >
+                                      <img
+                                        src={prod.thumbnail}
+                                        alt={prod.name}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="w-8 h-8 object-cover rounded-lg border border-slate-200 shadow-2xs group-hover/thumb:scale-110 transition-transform bg-white"
+                                        onError={e => {
+                                          const imgEl = e.currentTarget as HTMLImageElement;
+                                          imgEl.onerror = null;
+                                          imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 rounded-lg opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                                        <ZoomIn className="w-3.5 h-3.5 text-white" />
+                                      </div>
+                                    </div>
                                   ) : (
                                     <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[9px]">
                                       N/A
@@ -1466,6 +1554,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   onViewDetail={onViewDetail}
                   onEditProduct={onEditProduct}
                   showCostPrice={showCostPrice}
+                  onZoomImage={setZoomProduct}
                 />
               ))}
             </div>
@@ -1661,6 +1750,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           showCostPrice={showCostPrice}
         />
       )}
+
+      {/* LIGHTBOX MODAL: XEM ẢNH LỚN MỞ RỘNG KHI CLICK VÀO ẢNH */}
+      <ProductImageLightboxModal
+        product={zoomProduct}
+        onClose={() => setZoomProduct(null)}
+        onViewDetail={onViewDetail}
+        showCostPrice={showCostPrice}
+      />
 
     </div>
   );

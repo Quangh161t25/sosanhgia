@@ -1,7 +1,7 @@
 import React from 'react';
 import { Product } from '../types/product';
 import { formatVND, calculateFinancials } from '../utils/pricing';
-import { Scale, Check, ShieldCheck, Eye, Edit3, TrendingUp, Info } from 'lucide-react';
+import { Scale, Check, ShieldCheck, Eye, Edit3, TrendingUp, Info, ZoomIn } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -10,6 +10,7 @@ interface ProductCardProps {
   onViewDetail: (product: Product) => void;
   onEditProduct: (product: Product) => void;
   showCostPrice: boolean;
+  onZoomImage?: (product: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -19,6 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onViewDetail,
   onEditProduct,
   showCostPrice,
+  onZoomImage,
 }) => {
   const financials = calculateFinancials(product.pricing);
 
@@ -55,7 +57,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     >
       <div>
         {/* Top Media & Badges */}
-        <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
+        <div
+          className="relative aspect-4/3 overflow-hidden bg-slate-100 cursor-pointer group/img"
+          onClick={() => {
+            if (onZoomImage) onZoomImage(product);
+            else onViewDetail(product);
+          }}
+          title="Click để phóng to ảnh sản phẩm"
+        >
           <img
             src={product.thumbnail}
             alt={product.name}
@@ -68,6 +77,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
             }}
           />
+
+          {/* Zoom Hover Badge */}
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+            <span className="px-2.5 py-1 rounded-lg bg-black/70 text-white text-[11px] font-semibold flex items-center gap-1 backdrop-blur-xs shadow-md">
+              <ZoomIn className="w-3.5 h-3.5 text-blue-400" /> Phóng to ảnh
+            </span>
+          </div>
 
           {/* Overlay gradient */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />

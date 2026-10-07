@@ -26,7 +26,9 @@ import {
   Eye,
   Maximize2,
   Minimize2,
+  ZoomIn,
 } from 'lucide-react';
+import { ProductImageLightboxModal } from './ProductImageLightboxModal';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -68,6 +70,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     return 'wide'; // Mặc định luôn mở rộng (wide)
   });
   const [similarFilter, setSimilarFilter] = useState<'all' | 'compatible' | 'type' | 'group' | 'name'>('all');
+  const [zoomImageProduct, setZoomImageProduct] = useState<Product | null>(null);
 
   const toggleSimilarPanelWidth = () => {
     setSimilarPanelWidth(w => {
@@ -339,17 +342,27 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
                         {/* Cột trái: Ảnh + Tên + Hãng/Loại + Giá */}
                         <div className="sm:col-span-6 flex items-start gap-2.5 min-w-0">
-                          <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setZoomImageProduct(sim);
+                            }}
+                            className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 hover:border-blue-400 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative"
+                            title="Click để xem ảnh phóng to"
+                          >
                             <img
                               src={sim.thumbnail}
                               alt={sim.name}
                               loading="lazy"
-                              className="max-h-full max-w-full object-contain"
+                              className="max-h-full max-w-full object-contain group-hover/simthumb:scale-110 transition-transform"
                               onError={e => {
                                 (e.currentTarget as HTMLImageElement).src =
                                   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                               }}
                             />
+                            <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                              <ZoomIn className="w-3 h-3 text-white" />
+                            </div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
@@ -445,17 +458,27 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <>
                         {/* Giữa: Ảnh + Tên */}
                         <div className="flex items-start gap-2.5">
-                          <div className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setZoomImageProduct(sim);
+                            }}
+                            className="w-12 h-12 rounded-lg bg-slate-900 border border-slate-700 hover:border-blue-400 overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-zoom-in transition-colors group/simthumb relative"
+                            title="Click để xem ảnh phóng to"
+                          >
                             <img
                               src={sim.thumbnail}
                               alt={sim.name}
                               loading="lazy"
-                              className="max-h-full max-w-full object-contain"
+                              className="max-h-full max-w-full object-contain group-hover/simthumb:scale-110 transition-transform"
                               onError={e => {
                                 (e.currentTarget as HTMLImageElement).src =
                                   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                               }}
                             />
+                            <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover/simthumb:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                              <ZoomIn className="w-3 h-3 text-white" />
+                            </div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <h5 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={sim.name}>
@@ -718,19 +741,28 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-start">
-                <div className="sm:col-span-1 rounded-full overflow-hidden border-2 border-border bg-muted/30 aspect-square mx-auto w-28 sm:w-full max-w-[130px] shadow-2xs">
+                <div
+                  onClick={() => setZoomImageProduct(product)}
+                  className="sm:col-span-1 rounded-2xl overflow-hidden border-2 border-border bg-muted/30 aspect-square mx-auto w-28 sm:w-full max-w-[130px] shadow-2xs cursor-zoom-in relative group/mainphoto"
+                  title="Click để xem ảnh mở rộng"
+                >
                   <img
                     src={product.thumbnail}
                     alt={product.name}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover/mainphoto:scale-105 transition-transform duration-200"
                     onError={e => {
                       const imgEl = e.currentTarget as HTMLImageElement;
                       imgEl.onerror = null;
                       imgEl.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="18" x="3" y="3" rx="2"/%3E%3Cpath d="M3 9h18"/%3E%3Cpath d="M9 21V9"/%3E%3C/svg%3E';
                     }}
                   />
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/mainphoto:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                    <span className="px-2 py-1 rounded bg-black/70 text-white text-[10px] font-semibold flex items-center gap-1 backdrop-blur-xs">
+                      <ZoomIn className="w-3 h-3 text-blue-400" /> Phóng to
+                    </span>
+                  </div>
                 </div>
 
                 <div className="sm:col-span-3 space-y-2.5">
@@ -962,6 +994,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* LIGHTBOX MODAL: XEM ẢNH LỚN MỞ RỘNG KHI CLICK VÀO ẢNH */}
+      <ProductImageLightboxModal
+        product={zoomImageProduct}
+        onClose={() => setZoomImageProduct(null)}
+        showCostPrice={showCostPrice}
+      />
     </>
   );
 };
