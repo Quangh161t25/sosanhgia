@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product } from '../types/product';
 import { formatVND, calculateFinancials } from '../utils/pricing';
 import {
@@ -70,6 +70,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     return 'wide'; // Mặc định luôn mở rộng (wide)
   });
   const [similarFilter, setSimilarFilter] = useState<'all' | 'compatible' | 'type' | 'group' | 'name'>('all');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState<string | null>(null);
   const [zoomImageProduct, setZoomImageProduct] = useState<Product | null>(null);
 
   const toggleSimilarPanelWidth = () => {
@@ -86,6 +87,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   useEffect(() => {
     if (product && allProducts && allProducts.length > 0) {
       setIsLoadingSimilar(true);
+      setSelectedBrandFilter(null);
+      setSimilarFilter('all');
       findSimilarProducts(product, allProducts, undefined, 40)
         .then(results => {
           setSimilarProducts(results);
@@ -98,6 +101,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         });
     } else {
       setSimilarProducts([]);
+      setSelectedBrandFilter(null);
     }
   }, [product?.id, allProducts]);
 
@@ -109,6 +113,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       .catch(e => console.warn(e))
       .finally(() => setIsLoadingSimilar(false));
   };
+
+  // Danh sách các thương hiệu có trong danh sách gợi ý tương tự kèm số lượng sản phẩm
+  const brandStatsInSimilar = useMemo(() => {
+    const map: Record<string, number> = {};
+    similarProducts.forEach(s => {
+      const b = (s.product.brand || 'Khác').trim();
+      if (b) {
+        map[b] = (map[b] || 0) + 1;
+      }
+    });
+    return Object.entries(map)
+      .map(([brand, count]) => ({ brand, count }))
+      .sort((a, b) => b.count - a.count || a.brand.localeCompare(b.brand, 'vi'));
+  }, [similarProducts]);
 
   // Danh sách các sản phẩm có độ tương thích cao
   const compatibleProducts = React.useMemo(() => {
@@ -123,20 +141,25 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   }, [similarProducts]);
 
   const displayedSimilarProducts = React.useMemo(() => {
+    let list = similarProducts;
     if (similarFilter === 'compatible') {
-      return compatibleProducts;
+      list = compatibleProducts;
+    } else if (similarFilter === 'type') {
+      list = similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame);
+    } else if (similarFilter === 'group') {
+      list = similarProducts.filter(s => s.criteriaMatch?.groupMatch?.isSame);
+    } else if (similarFilter === 'name') {
+      list = similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20);
     }
-    if (similarFilter === 'type') {
-      return similarProducts.filter(s => s.criteriaMatch?.typeMatch?.isSame);
+
+    if (selectedBrandFilter) {
+      list = list.filter(
+        s => (s.product.brand || 'Khác').trim().toLowerCase() === selectedBrandFilter.trim().toLowerCase()
+      );
     }
-    if (similarFilter === 'group') {
-      return similarProducts.filter(s => s.criteriaMatch?.groupMatch?.isSame);
-    }
-    if (similarFilter === 'name') {
-      return similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20);
-    }
-    return similarProducts;
-  }, [similarProducts, similarFilter, compatibleProducts]);
+
+    return list;
+  }, [similarProducts, similarFilter, compatibleProducts, selectedBrandFilter]);
 
   if (!product) return null;
 
@@ -222,14 +245,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Thanh lọc nhanh tiêu chí khi có nhiều sản phẩm */}
+          {/* Thanh lọc nhanh tiêu chí & thương hiệu khi có nhiều sản phẩm */}
           {similarProducts.length > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50/50 overflow-x-auto text-[10px] shrink-0">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50/50 overflow-x-auto text-[10px] shrink-0 scrollbar-thin">
               <button
                 type="button"
-                onClick={() => setSimilarFilter('all')}
+                onClick={() => {
+                  setSimilarFilter('all');
+                  setSelectedBrandFilter(null);
+                }}
                 className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
-                  similarFilter === 'all'
+                  similarFilter === 'all' && !selectedBrandFilter
                     ? 'bg-blue-600 text-white font-bold shadow-2xs'
                     : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
                 }`}
@@ -238,7 +264,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSimilarFilter('compatible')}
+                onClick={() => setSimilarFilter(similarFilter === 'compatible' ? 'all' : 'compatible')}
                 className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 ${
                   similarFilter === 'compatible'
                     ? 'bg-amber-500 text-white font-bold shadow-2xs'
@@ -250,7 +276,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSimilarFilter('type')}
+                onClick={() => setSimilarFilter(similarFilter === 'type' ? 'all' : 'type')}
                 className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'type'
                     ? 'bg-emerald-600 text-white font-bold shadow-2xs'
@@ -261,7 +287,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSimilarFilter('group')}
+                onClick={() => setSimilarFilter(similarFilter === 'group' ? 'all' : 'group')}
                 className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'group'
                     ? 'bg-indigo-600 text-white font-bold shadow-2xs'
@@ -272,7 +298,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSimilarFilter('name')}
+                onClick={() => setSimilarFilter(similarFilter === 'name' ? 'all' : 'name')}
                 className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
                   similarFilter === 'name'
                     ? 'bg-purple-600 text-white font-bold shadow-2xs'
@@ -281,6 +307,31 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               >
                 Khớp tên ({similarProducts.filter(s => (s.criteriaMatch?.nameMatch?.score || 0) >= 20).length})
               </button>
+
+              {/* Phân tách và Lọc theo thương hiệu */}
+              {brandStatsInSimilar.length > 0 && (
+                <>
+                  <span className="w-px h-3.5 bg-slate-300 mx-0.5 shrink-0" />
+                  {brandStatsInSimilar.map(({ brand, count }) => {
+                    const isActive = selectedBrandFilter?.toLowerCase() === brand.toLowerCase();
+                    return (
+                      <button
+                        key={brand}
+                        type="button"
+                        onClick={() => setSelectedBrandFilter(isActive ? null : brand)}
+                        className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all ${
+                          isActive
+                            ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                            : 'bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 border border-slate-200'
+                        }`}
+                        title={`Lọc theo thương hiệu: ${brand} (${count} sản phẩm)`}
+                      >
+                        {brand} ({count})
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
           )}
 
@@ -313,7 +364,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <p className="text-xs">Không có sản phẩm nào phù hợp với bộ lọc này.</p>
                 <button
                   type="button"
-                  onClick={() => setSimilarFilter('all')}
+                  onClick={() => {
+                    setSimilarFilter('all');
+                    setSelectedBrandFilter(null);
+                  }}
                   className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer shadow-2xs"
                 >
                   Hiển thị tất cả ({similarProducts.length})
