@@ -40,7 +40,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>('');
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
-  const [duplicateMode, setDuplicateMode] = useState<'update' | 'skip'>('update');
+  const [duplicateStrategy, setDuplicateStrategy] = useState<'add_only' | 'overwrite_full' | 'overwrite_partial'>('overwrite_partial');
   const [autoSyncSheet, setAutoSyncSheet] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -259,8 +259,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
           const exists = productMap.has(key);
           if (exists) {
-            if (duplicateMode === 'update') {
-              // CẬP NHẬT LẠI DÒNG: Ghi đè dữ liệu mới từ Excel
+            if (duplicateStrategy === 'add_only') {
+              // 1. CHỈ THÊM DÒNG MỚI: Bỏ qua dòng trùng, giữ nguyên 100% dữ liệu cũ
+              return;
+            } else if (duplicateStrategy === 'overwrite_full') {
+              // 2. GHI ĐÈ VÀ SỬA TOÀN BỘ NỘI DUNG KHI TRÙNG ID:
               const existingProd = productMap.get(key)!;
               productMap.set(key, {
                 ...existingProd,
@@ -269,8 +272,41 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 sku: key,
                 updatedAt: new Date().toISOString().split('T')[0],
               });
-            } else {
-              // BỎ QUA DÒNG TRÙNG: Giữ nguyên dữ liệu cũ trong hệ thống
+            } else if (duplicateStrategy === 'overwrite_partial') {
+              // 3. GHI ĐÈ NHƯNG MÀ SỬA CỘT NÀO CÓ NỘI DUNG THÔI:
+              const existingProd = productMap.get(key)!;
+              const flags = p.rawFilledFields;
+
+              const mergedProd: Product = {
+                ...existingProd,
+                name: flags?.name ? p.name : existingProd.name,
+                brand: flags?.brand ? p.brand : (existingProd.brand || p.brand),
+                categoryGroup: flags?.categoryGroup ? p.categoryGroup : (existingProd.categoryGroup || p.categoryGroup),
+                categoryType: flags?.categoryType ? p.categoryType : (existingProd.categoryType || p.categoryType),
+                warrantyMonths: flags?.warrantyMonths ? p.warrantyMonths : existingProd.warrantyMonths,
+                thumbnail: flags?.thumbnail ? p.thumbnail : (existingProd.thumbnail || p.thumbnail),
+                pricing: {
+                  ...existingProd.pricing,
+                  costPrice: flags?.costPrice ? p.pricing.costPrice : existingProd.pricing.costPrice,
+                  distributorPrice: flags?.distributorPrice ? p.pricing.distributorPrice : existingProd.pricing.distributorPrice,
+                  floorPrice: flags?.floorPrice ? p.pricing.floorPrice : existingProd.pricing.floorPrice,
+                  retailPrice: flags?.retailPrice ? p.pricing.retailPrice : existingProd.pricing.retailPrice,
+                  currency: existingProd.pricing.currency || p.pricing.currency || 'VND',
+                },
+                specifications: (flags?.specifications && p.specifications.length > 0)
+                  ? p.specifications
+                  : existingProd.specifications,
+                tags: (flags?.tags && p.tags.length > 0)
+                  ? p.tags
+                  : existingProd.tags,
+                notes: flags?.notes ? p.notes : existingProd.notes,
+                description: flags?.description ? p.description : existingProd.description,
+                status: flags?.status ? p.status : existingProd.status,
+                id: key,
+                sku: key,
+                updatedAt: new Date().toISOString().split('T')[0],
+              };
+              productMap.set(key, mergedProd);
             }
           } else {
             // SẢN PHẨM MỚI: Thêm mới vào hệ thống
@@ -290,15 +326,18 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       await onImportProducts(finalProducts, autoSyncSheet);
 
       const addedCount = newCount;
-      const updatedCount = duplicateMode === 'update' ? duplicateCount : 0;
-      const skippedCount = duplicateMode === 'skip' ? duplicateCount : 0;
+      const overwrittenFullCount = duplicateStrategy === 'overwrite_full' ? duplicateCount : 0;
+      const overwrittenPartialCount = duplicateStrategy === 'overwrite_partial' ? duplicateCount : 0;
+      const skippedCount = duplicateStrategy === 'add_only' ? duplicateCount : 0;
 
       let msg = `Nhập dữ liệu thành công!\n- Tổng cộng danh mục: ${finalProducts.length} sản phẩm.\n- Đã thêm mới: ${addedCount} sản phẩm.\n`;
       if (duplicateCount > 0 && importMode !== 'replace') {
-        if (duplicateMode === 'update') {
-          msg += `- Đã cập nhật lại: ${updatedCount} dòng trùng Mã SKU theo file Excel.\n`;
-        } else {
-          msg += `- Đã bỏ qua: ${skippedCount} dòng trùng Mã SKU (giữ nguyên dữ liệu cũ).\n`;
+        if (duplicateStrategy === 'add_only') {
+          msg += `- Đã bỏ qua: ${skippedCount} dòng trùng Mã SKU (giữ nguyên toàn bộ dữ liệu cũ trong kho).\n`;
+        } else if (duplicateStrategy === 'overwrite_full') {
+          msg += `- Đã ghi đè toàn bộ nội dung: ${overwrittenFullCount} dòng trùng Mã SKU theo file Excel.\n`;
+        } else if (duplicateStrategy === 'overwrite_partial') {
+          msg += `- Đã ghi đè thông minh (chỉ sửa cột có nội dung): ${overwrittenPartialCount} dòng trùng Mã SKU.\n`;
         }
       }
       if (autoSyncSheet) {
@@ -519,75 +558,115 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
               {/* KHỐI LỰA CHỌN KHI PHÁT HIỆN TRÙNG MÃ SKU / ID */}
               {duplicateCount > 0 && importMode === 'merge' && (
-                <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-2.5 shadow-2xs">
+                <div className="p-3.5 sm:p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3 shadow-2xs">
                   <div className="flex items-start gap-2.5">
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h5 className="text-xs font-bold text-amber-950">
+                        <h5 className="text-xs font-bold text-slate-900">
                           Phát hiện {duplicateCount} sản phẩm trùng Mã SKU / ID với hệ thống hiện tại
                         </h5>
-                        <span className="text-[11px] text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md font-medium">
+                        <span className="text-[11px] text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md font-semibold">
                           ({newCount} mới + {duplicateCount} đã tồn tại)
                         </span>
                       </div>
-                      <p className="text-[11px] text-amber-800 mt-0.5">
-                        Chọn phương án xử lý cho các dòng bị trùng mã SKU:
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Chọn 1 trong 3 phương án xử lý dưới đây:
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                    {/* Lựa chọn 1 */}
                     <label
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
-                        duplicateMode === 'update'
-                          ? 'bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
-                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="duplicateMode"
-                        value="update"
-                        checked={duplicateMode === 'update'}
-                        onChange={() => setDuplicateMode('update')}
-                        className="mt-0.5 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          1. Cập nhật lại dòng (Ghi đè)
-                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 font-semibold">
-                            Khuyên dùng
-                          </span>
-                        </span>
-                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                          Cập nhật giá và thông tin mới từ file Excel cho <b>{duplicateCount}</b> sản phẩm trùng, đồng thời nạp <b>{newCount}</b> sản phẩm mới.
-                        </p>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
-                        duplicateMode === 'skip'
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                        duplicateStrategy === 'add_only'
                           ? 'bg-white border-blue-500 shadow-xs ring-2 ring-blue-500/20'
                           : 'bg-white/80 border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <input
-                        type="radio"
-                        name="duplicateMode"
-                        value="skip"
-                        checked={duplicateMode === 'skip'}
-                        onChange={() => setDuplicateMode('skip')}
-                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-slate-900">
-                          2. Bỏ qua dòng bị trùng
-                        </span>
-                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                          Giữ nguyên dữ liệu cũ trong hệ thống cho <b>{duplicateCount}</b> sản phẩm trùng, chỉ nạp thêm <b>{newCount}</b> sản phẩm mới từ Excel.
-                        </p>
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="radio"
+                          name="duplicateStrategy"
+                          value="add_only"
+                          checked={duplicateStrategy === 'add_only'}
+                          onChange={() => setDuplicateStrategy('add_only')}
+                          className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900">
+                              1. Chỉ thêm dòng mới
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            Bỏ qua các dòng trùng ID (giữ nguyên dữ liệu cũ). Chỉ thêm mới <b>{newCount}</b> sản phẩm chưa có trong kho.
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Lựa chọn 2 */}
+                    <label
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                        duplicateStrategy === 'overwrite_full'
+                          ? 'bg-white border-amber-500 shadow-xs ring-2 ring-amber-500/20'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="radio"
+                          name="duplicateStrategy"
+                          value="overwrite_full"
+                          checked={duplicateStrategy === 'overwrite_full'}
+                          onChange={() => setDuplicateStrategy('overwrite_full')}
+                          className="mt-0.5 text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900">
+                              2. Ghi đè toàn bộ nội dung
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            Sửa toàn bộ thông tin của <b>{duplicateCount}</b> sản phẩm trùng bằng file Excel (kể cả các cột để trống).
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Lựa chọn 3 */}
+                    <label
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                        duplicateStrategy === 'overwrite_partial'
+                          ? 'bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="radio"
+                          name="duplicateStrategy"
+                          value="overwrite_partial"
+                          checked={duplicateStrategy === 'overwrite_partial'}
+                          onChange={() => setDuplicateStrategy('overwrite_partial')}
+                          className="mt-0.5 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900">
+                              3. Chỉ sửa cột có nội dung
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 font-semibold">
+                              Khuyên dùng ⭐
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            Chỉ sửa các cột có điền dữ liệu trên Excel. Các cột để trống sẽ <b>giữ nguyên dữ liệu cũ</b> (không mất ảnh, thông số hay giá).
+                          </p>
+                        </div>
                       </div>
                     </label>
                   </div>
@@ -621,13 +700,17 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                 Thay thế
                               </span>
                             ) : isDuplicate ? (
-                              duplicateMode === 'update' ? (
-                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 mt-0.5">
-                                  Trùng ID • Sẽ cập nhật
-                                </span>
-                              ) : (
+                              duplicateStrategy === 'add_only' ? (
                                 <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300 mt-0.5">
                                   Trùng ID • Sẽ bỏ qua
+                                </span>
+                              ) : duplicateStrategy === 'overwrite_full' ? (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 mt-0.5">
+                                  Trùng ID • Ghi đè toàn bộ
+                                </span>
+                              ) : (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 mt-0.5">
+                                  Trùng ID • Sửa cột có dữ liệu
                                 </span>
                               )
                             ) : (
@@ -698,7 +781,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 Tổng cộng: <b>{parsedProducts.length}</b> sản phẩm
                 {importMode === 'merge' && duplicateCount > 0 && (
                   <span className="ml-1.5 text-slate-600 font-medium">
-                    ({newCount} mới, {duplicateCount} trùng - {duplicateMode === 'update' ? 'sẽ cập nhật dòng' : 'sẽ bỏ qua'})
+                    ({newCount} mới, {duplicateCount} trùng - {
+                      duplicateStrategy === 'add_only'
+                        ? 'sẽ bỏ qua trùng'
+                        : duplicateStrategy === 'overwrite_full'
+                        ? 'ghi đè toàn bộ'
+                        : 'chỉ sửa cột có nội dung'
+                    })
                   </span>
                 )}
               </span>
@@ -732,9 +821,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                     {importMode === 'replace'
                       ? `Thay thế toàn bộ (${parsedProducts.length} sản phẩm)`
                       : duplicateCount > 0
-                      ? duplicateMode === 'update'
-                        ? `Cập nhật ${duplicateCount} dòng & Thêm ${newCount} mới`
-                        : `Bỏ qua ${duplicateCount} trùng & Thêm ${newCount} mới`
+                      ? duplicateStrategy === 'add_only'
+                        ? `Chỉ nạp ${newCount} mã mới (Bỏ qua ${duplicateCount} trùng)`
+                        : duplicateStrategy === 'overwrite_full'
+                        ? `Ghi đè toàn bộ ${duplicateCount} dòng & Thêm ${newCount} mới`
+                        : `Cập nhật cột có nội dung (${duplicateCount} dòng) & Thêm ${newCount} mới`
                       : `Xác nhận nạp ${newCount} sản phẩm`}
                   </span>
                 </>

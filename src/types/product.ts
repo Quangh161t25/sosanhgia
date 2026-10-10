@@ -18,6 +18,25 @@ export interface SpecGroup {
   items: SpecItem[];
 }
 
+export interface RawFieldFlags {
+  sku?: boolean;
+  name?: boolean;
+  brand?: boolean;
+  categoryGroup?: boolean;
+  categoryType?: boolean;
+  warrantyMonths?: boolean;
+  costPrice?: boolean;
+  distributorPrice?: boolean;
+  floorPrice?: boolean;
+  retailPrice?: boolean;
+  thumbnail?: boolean;
+  tags?: boolean;
+  notes?: boolean;
+  description?: boolean;
+  specifications?: boolean;
+  status?: boolean;
+}
+
 export interface Product {
   id: string;
   sku: string;             // Mã modul / Model (vd: 'NL-AF65D', 'RB-X100MAX')
@@ -33,6 +52,7 @@ export interface Product {
   status: 'active' | 'low_stock' | 'out_of_stock';
   brand?: string;
   warrantyMonths?: number;
+  rawFilledFields?: RawFieldFlags;
   updatedAt: string;
 }
 

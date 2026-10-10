@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, SpecGroup } from '../types/product';
 import {
   X,
@@ -148,6 +148,49 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [tagsInput, setTagsInput] = useState('');
   const [notes, setNotes] = useState('');
   const [description, setDescription] = useState('');
+
+  // Upload hình ảnh đại diện từ máy tính
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh hợp lệ (JPG, PNG, WebP...).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = event => {
+      const img = new Image();
+      img.onload = () => {
+        // Tự động nén ảnh vừa vặn (max 700px) để lưu trữ tối ưu trong LocalStorage & Google Sheet
+        const maxDim = 700;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setThumbnail(compressedDataUrl);
+        } else {
+          setThumbnail(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // 4 tầng giá
   const [costPrice, setCostPrice] = useState<number | ''>('');
@@ -1311,37 +1354,74 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 {/* Khung tải ảnh tròn Avatar đại diện */}
                 <div className="flex flex-col items-center justify-center mb-2">
-                  <div className="w-24">
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileSelect}
+                    className="hidden"
+                  />
+                  <div className="w-24 relative">
                     <div className="relative group/frame mx-auto w-full">
                       <div
                         role="button"
                         tabIndex={0}
-                        title="Ảnh đại diện sản phẩm"
-                        className="relative overflow-hidden border-2 transition-all duration-200 mx-auto rounded-full border-dashed cursor-pointer border-border hover:border-primary/40 bg-muted/30 hover:bg-muted/50 aspect-square flex items-center justify-center shadow-2xs"
+                        onClick={() => imageFileInputRef.current?.click()}
+                        title="Nhấn để chọn ảnh từ máy tính (JPG, PNG, WebP)"
+                        className="relative overflow-hidden border-2 transition-all duration-200 mx-auto rounded-full border-dashed cursor-pointer border-border hover:border-primary/60 bg-muted/30 hover:bg-muted/50 aspect-square flex items-center justify-center shadow-2xs group"
                       >
                         {thumbnail ? (
-                          <img
-                            src={thumbnail}
-                            alt={name || 'Thumbnail'}
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img
+                              src={thumbnail}
+                              alt={name || 'Thumbnail'}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold">
+                              <Upload className="w-4 h-4 mb-0.5" />
+                              <span>Đổi ảnh</span>
+                            </div>
+                          </>
                         ) : (
                           <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors bg-muted text-muted-foreground">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors bg-muted text-muted-foreground group-hover:text-primary">
                               <ImagePlus className="w-4 h-4" aria-hidden="true" />
                             </div>
-                            <p className="text-xs font-medium transition-colors leading-tight text-muted-foreground">
-                              Ảnh đại diện
+                            <p className="text-xs font-medium transition-colors leading-tight text-muted-foreground group-hover:text-primary">
+                              Tải ảnh lên
                             </p>
                           </div>
                         )}
                       </div>
+
+                      {thumbnail && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setThumbnail('');
+                          }}
+                          title="Xóa ảnh này"
+                          className="absolute -top-1 -right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-xs cursor-pointer z-10 transition-transform hover:scale-110"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Nút chọn nhanh ảnh mẫu */}
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2.5">
-                    <span className="text-[11px] text-muted-foreground">Ảnh mẫu:</span>
+                  {/* Nút thao tác ảnh */}
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => imageFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs"
+                    >
+                      <Upload className="w-3 h-3 text-blue-600" />
+                      <span>Chọn ảnh từ máy</span>
+                    </button>
+
+                    <span className="text-[11px] text-muted-foreground ml-1">Hoặc ảnh mẫu:</span>
                     {SAMPLE_IMAGES.map((img, i) => (
                       <button
                         key={i}

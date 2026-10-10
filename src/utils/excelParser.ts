@@ -403,43 +403,56 @@ export function parseProductsFromRawRows(rawRows: any[][]): Product[] {
       continue;
     }
 
-    const rawSku = colMap.sku !== -1 && row[colMap.sku] !== undefined ? String(row[colMap.sku]).trim() : '';
-    const rawName = colMap.name !== -1 && row[colMap.name] !== undefined ? String(row[colMap.name]).trim() : '';
+    const hasSku = colMap.sku !== -1 && row[colMap.sku] !== undefined && String(row[colMap.sku]).trim() !== '';
+    const hasName = colMap.name !== -1 && row[colMap.name] !== undefined && String(row[colMap.name]).trim() !== '';
+    const hasBrand = colMap.brand !== -1 && row[colMap.brand] !== undefined && String(row[colMap.brand]).trim() !== '';
+    const hasGroup = colMap.group !== -1 && row[colMap.group] !== undefined && String(row[colMap.group]).trim() !== '';
+    const hasType = colMap.type !== -1 && row[colMap.type] !== undefined && String(row[colMap.type]).trim() !== '';
+    const hasWarranty = colMap.warranty !== -1 && row[colMap.warranty] !== undefined && String(row[colMap.warranty]).trim() !== '';
+    const hasCost = colMap.cost !== -1 && row[colMap.cost] !== undefined && String(row[colMap.cost]).trim() !== '';
+    const hasNpp = colMap.npp !== -1 && row[colMap.npp] !== undefined && String(row[colMap.npp]).trim() !== '';
+    const hasFloor = colMap.floor !== -1 && row[colMap.floor] !== undefined && String(row[colMap.floor]).trim() !== '';
+    const hasRetail = colMap.retail !== -1 && row[colMap.retail] !== undefined && String(row[colMap.retail]).trim() !== '';
+    const hasImg = colMap.img !== -1 && row[colMap.img] !== undefined && String(row[colMap.img]).trim() !== '';
+    const hasTags = colMap.tags !== -1 && row[colMap.tags] !== undefined && String(row[colMap.tags]).trim() !== '';
+    const hasNotes = colMap.notes !== -1 && row[colMap.notes] !== undefined && String(row[colMap.notes]).trim() !== '';
+    const hasDesc = colMap.desc !== -1 && row[colMap.desc] !== undefined && String(row[colMap.desc]).trim() !== '';
+    const hasSpecs = colMap.specs !== -1 && row[colMap.specs] !== undefined && String(row[colMap.specs]).trim() !== '';
+    const hasStatus = colMap.status !== -1 && row[colMap.status] !== undefined && String(row[colMap.status]).trim() !== '';
 
     // Bỏ qua dòng trống hoặc dòng tổng cộng / chữ ký
+    const rawSku = hasSku ? String(row[colMap.sku]).trim() : '';
+    const rawName = hasName ? String(row[colMap.name]).trim() : '';
     if (!rawSku && !rawName) continue;
     if (/^(tổng|tổng cộng|người lập|giám đốc|kế toán|ghi chú)/i.test(rawSku || rawName)) continue;
 
     // Tự sinh SKU nếu có Tên nhưng chưa có SKU
     const sku = (rawSku || `SP-${r}`).toUpperCase();
     const name = rawName || `Sản phẩm ${sku}`;
-    const brand = colMap.brand !== -1 && row[colMap.brand] ? String(row[colMap.brand]).trim() : 'LOCK&KING';
-    const categoryGroup = colMap.group !== -1 && row[colMap.group] ? String(row[colMap.group]).trim() : 'Điện gia dụng';
-    const categoryType = colMap.type !== -1 && row[colMap.type] ? String(row[colMap.type]).trim() : 'Sản phẩm';
-    const warrantyMonths = colMap.warranty !== -1 ? Number(row[colMap.warranty]) || 12 : 12;
+    const brand = hasBrand ? String(row[colMap.brand]).trim() : 'LOCK&KING';
+    const categoryGroup = hasGroup ? String(row[colMap.group]).trim() : 'Điện gia dụng';
+    const categoryType = hasType ? String(row[colMap.type]).trim() : 'Sản phẩm';
+    const warrantyMonths = hasWarranty ? Number(row[colMap.warranty]) || 12 : 12;
 
-    const costPrice = colMap.cost !== -1 ? parseExcelPrice(row[colMap.cost]) : 0;
-    const distributorPrice = colMap.npp !== -1 ? parseExcelPrice(row[colMap.npp]) : 0;
-    const floorPrice = colMap.floor !== -1 ? parseExcelPrice(row[colMap.floor]) : 0;
-    const retailPrice = colMap.retail !== -1 ? parseExcelPrice(row[colMap.retail]) : 0;
+    const costPrice = hasCost ? parseExcelPrice(row[colMap.cost]) : 0;
+    const distributorPrice = hasNpp ? parseExcelPrice(row[colMap.npp]) : 0;
+    const floorPrice = hasFloor ? parseExcelPrice(row[colMap.floor]) : 0;
+    const retailPrice = hasRetail ? parseExcelPrice(row[colMap.retail]) : 0;
 
-    const thumbnail =
-      colMap.img !== -1 && row[colMap.img]
-        ? String(row[colMap.img]).trim()
-        : 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=500';
+    const thumbnail = hasImg
+      ? String(row[colMap.img]).trim()
+      : 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=500';
 
-    const tags =
-      colMap.tags !== -1 && row[colMap.tags]
-        ? String(row[colMap.tags])
-            .split(',')
-            .map((t: string) => t.trim())
-            .filter(Boolean)
-        : [];
+    const tags = hasTags
+      ? String(row[colMap.tags])
+          .split(',')
+          .map((t: string) => t.trim())
+          .filter(Boolean)
+      : [];
 
-    const notes = colMap.notes !== -1 && row[colMap.notes] ? String(row[colMap.notes]).trim() : '';
-    const description = colMap.desc !== -1 && row[colMap.desc] ? String(row[colMap.desc]).trim() : '';
-    const rawSpecs = colMap.specs !== -1 && row[colMap.specs] ? String(row[colMap.specs]).trim() : '';
-
+    const notes = hasNotes ? String(row[colMap.notes]).trim() : '';
+    const description = hasDesc ? String(row[colMap.desc]).trim() : '';
+    const rawSpecs = hasSpecs ? String(row[colMap.specs]).trim() : '';
     const specifications = parseSpecsTextToGroups(rawSpecs);
     const stableId = sku;
 
@@ -464,6 +477,24 @@ export function parseProductsFromRawRows(rawRows: any[][]): Product[] {
       notes,
       description,
       status: 'active',
+      rawFilledFields: {
+        sku: hasSku,
+        name: hasName,
+        brand: hasBrand,
+        categoryGroup: hasGroup,
+        categoryType: hasType,
+        warrantyMonths: hasWarranty,
+        costPrice: hasCost,
+        distributorPrice: hasNpp,
+        floorPrice: hasFloor,
+        retailPrice: hasRetail,
+        thumbnail: hasImg,
+        tags: hasTags,
+        notes: hasNotes,
+        description: hasDesc,
+        specifications: hasSpecs,
+        status: hasStatus,
+      },
       updatedAt: new Date().toISOString().split('T')[0],
     });
   }
